@@ -39,6 +39,14 @@ example (n m : ℕ) : (mk n ⟶ mk m) = Pointed.Hom (PointedFin n) (PointedFin m
 def ofFun {n m : ℕ} (φ : Fin (n + 1) → Fin (m + 1)) (hφ : φ 0 = 0) : mk n  ⟶ mk m  :=
   Pointed.Hom.mk φ hφ
 
+/-- The map that gives the n addition-/
+def map_add n : mk n  ⟶ mk 1  := 
+  ofFun (fun i => if i = 0 then 0 else 1) (Fin.eq_of_val_eq rfl) 
+
+/-- The projection to the j-th coordinate of n_+, where the coordinates go from 0 to n-1 -/
+def map_proj {n : ℕ} (j : Fin n) : mk n  ⟶ mk 1  := 
+  ofFun (fun i => if i = j.succ then 1 else 0) (Fin.eq_of_val_eq rfl) 
+
 lemma succ_zero_one : (0 : Fin 1).succ = (1 : Fin 2) := by decide
 
 lemma fin1_eq_zero : ∀ k : Fin 1, k = 0 := by decide
