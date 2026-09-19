@@ -1,32 +1,33 @@
 import Mathlib.Data.Finset.Sort
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Group.Monoid
+/-! Introducing HyperAdd and F1modules -/
 
-universe u 
+universe u
 
-structure partition (n m : ℕ) where  
-  toFun: (Fin m) → (Finset (Fin n))
-  isPar: ∀ i : (Fin n), ∃! j : (Fin m), i ∈ toFun j  
+structure partition (n m : ℕ) where
+  toFun : (Fin m) → (Finset (Fin n))
+  isPar : ∀ i : (Fin n), ∃! j : (Fin m), i ∈ toFun j
 
-class HyperAdd (M : Type u) where 
+class HyperAdd (M : Type u) where
   hadd (n : ℕ) : (Fin n → M) → (Set M)
 
-def HyperAdd.set (M : Type u) [HyperAdd M] (n : ℕ): (Fin n → Set M) → Set M := 
-   fun A => ⋃ (a : (i : Fin n) → (A i)), hadd n (fun i => (a i : M)) 
+def HyperAdd.set (M : Type u) [HyperAdd M] (n : ℕ) : (Fin n → Set M) → Set M :=
+   fun A => ⋃ (a : (i : Fin n) → (A i)), hadd n (fun i => (a i : M))
 
-def HyperAdd.finset (M : Type u) [HyperAdd M] (n : ℕ) (F : Finset (Fin n)) : (F → Set M) → Set M := 
+def HyperAdd.finset (M : Type u) [HyperAdd M] (n : ℕ) (F : Finset (Fin n)) : (F → Set M) → Set M :=
   fun A => ⋃ (a : (i : F) → (A i)), hadd F.card (fun i => (a ((F.orderIsoOfFin rfl) i) : M))
 
-class F1module (M : Type u) extends HyperAdd M where 
-  hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → (Set M)) :  
+class F1module (M : Type u) extends HyperAdd M where
+  hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → (Set M)) :
     HyperAdd.set M n A ⊆ HyperAdd.set M m (fun i => HyperAdd.finset M n (p.toFun i) (fun f => A f))
 
-instance AddCommMonoid.hyperadd (M: Type u) [AddCommMonoid M]: HyperAdd M where 
-  hadd := fun n a => Set.singleton (∑ (i : Fin n), a i) 
+instance AddCommMonoid.hyperadd (M : Type u) [AddCommMonoid M] : HyperAdd M where
+  hadd := fun n a => Set.singleton (∑ (i : Fin n), a i)
 
-/-- The hadd_assoc for a AddMonoid is exactly the statement that a sum over Fin n can be 
+/-- The hadd_assoc for a AddMonoid is exactly the statement that a sum over Fin n can be
 regrouped according to a partition into blocks. -/
-instance AddCommMonoid.F1module (M: Type u) [AddCommMonoid M]: F1module M where 
+instance AddCommMonoid.F1module (M : Type u) [AddCommMonoid M] : F1module M where
   hadd_assoc {n m} (p) (A) := by
     intro x hx
     simp only [HyperAdd.set, Set.mem_iUnion] at hx
