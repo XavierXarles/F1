@@ -11,6 +11,8 @@ import Mathlib.CategoryTheory.Functor.FullyFaithful
 
 open CategoryTheory
 
+universe u
+
 namespace HM
 
 variable {M : Type u} [AddCommMonoid M]
@@ -59,7 +61,7 @@ end HM
 open HM in
 /-- The Eilenberg–Mac Lane `Γ`-set of a commutative monoid `M`:
 `HM(n₊) = M^{⊕n}`, pointed at `(0,…,0)`. -/
-def HM (M : Type u) [AddCommMonoid M] : GammaSpace.{u} where
+def HM (M : Type 0) [AddCommMonoid M] : GammaSpace where
   obj := fun n => ⟨(Fin n → M), fun _ => (0 : M)⟩
   map := fun {n m} f => ⟨mapFun f.toFun, mapFun_zero f.toFun⟩
   map_id := fun n => by
@@ -75,7 +77,7 @@ def HM (M : Type u) [AddCommMonoid M] : GammaSpace.{u} where
 
 namespace HM
 
-variable {M N : Type u} [AddCommMonoid M] [AddCommMonoid N]
+variable {M N : Type 0} [AddCommMonoid M] [AddCommMonoid N]
 
 /-- Applying an additive hom componentwise commutes with `mapFun`. -/
 lemma mapFun_hom {n m : ℕ} (φ : Fin (n + 1) → Fin (m + 1)) (h : M →+ N) (a : Fin n → M) :
@@ -102,7 +104,7 @@ end HM
 open HM in
 /-- The Eilenberg–Mac Lane functor `AddCommMonCat ⥤ GammaSpace`,
 `M ↦ HM M`, `h ↦ h` applied componentwise. -/
-def HMFunctor : AddCommMonCat.{u} ⥤ GammaSpace.{u} where
+def HMFunctor : AddCommMonCat ⥤ GammaSpace where
   obj M := HM M
   map f := hMap f.hom
   map_id M := by
@@ -118,7 +120,7 @@ def HMFunctor : AddCommMonCat.{u} ⥤ GammaSpace.{u} where
 
 namespace HM
 
-variable {M M' : Type u} [AddCommMonoid M] [AddCommMonoid M']
+variable {M M' : Type 0} [AddCommMonoid M] [AddCommMonoid M']
 
 /-- Naturality of a morphism of `Γ`-sets, written out in coordinates. -/
 lemma app_mapFun (α : HM M ⟶ HM M') {n m : ℕ} (φ : Fin (n + 1) → Fin (m + 1)) (hφ : φ 0 = 0)

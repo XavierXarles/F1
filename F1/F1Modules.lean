@@ -1,16 +1,12 @@
 import Mathlib.Data.Finset.Sort
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Group.Monoid
+import F1.HyperAdd
 /-! Introducing HyperAdd and F1modules -/
 
 universe u
 
-structure partition (n m : ℕ) where
-  toFun : (Fin m) → (Finset (Fin n))
-  isPar : ∀ i : (Fin n), ∃! j : (Fin m), i ∈ toFun j
-
-class HyperAdd (M : Type u) where
-  hadd (n : ℕ) : (Fin n → M) → (Set M)
+section HyperAdd
 
 def HyperAdd.set (M : Type u) [HyperAdd M] (n : ℕ) : (Fin n → Set M) → Set M :=
    fun A => ⋃ (a : (i : Fin n) → (A i)), hadd n (fun i => (a i : M))
@@ -18,20 +14,24 @@ def HyperAdd.set (M : Type u) [HyperAdd M] (n : ℕ) : (Fin n → Set M) → Set
 def HyperAdd.finset (M : Type u) [HyperAdd M] (n : ℕ) (F : Finset (Fin n)) : (F → Set M) → Set M :=
   fun A => ⋃ (a : (i : F) → (A i)), hadd F.card (fun i => (a ((F.orderIsoOfFin rfl) i) : M))
 
+end HyperAdd
+
+structure partition (n m : ℕ) where
+  toFun : (Fin m) → (Finset (Fin n))
+  isPar : ∀ i : (Fin n), ∃! j : (Fin m), i ∈ toFun j
+
 class F1module (M : Type u) extends HyperAdd M where
   hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → (Set M)) :
     HyperAdd.set M n A ⊆ HyperAdd.set M m (fun i => HyperAdd.finset M n (p.toFun i) (fun f => A f))
 
-instance AddCommMonoid.hyperadd (M : Type u) [AddCommMonoid M] : HyperAdd M where
-  hadd := fun n a => Set.singleton (∑ (i : Fin n), a i)
-
-/-- The hadd_assoc for a AddMonoid is exactly the statement that a sum over Fin n can be
+/-- The hadd_assoc for a AddCommMonoid is exactly the statement that a sum over Fin n can be
 regrouped according to a partition into blocks. -/
 instance AddCommMonoid.F1module (M : Type u) [AddCommMonoid M] : F1module M where
   hadd_assoc {n m} (p) (A) := by
     intro x hx
     simp only [HyperAdd.set, Set.mem_iUnion] at hx
     obtain ⟨a, hx⟩ := hx
+    rw [AddMonoid.hadd_eq_sum] at hx
     change x = ∑ i, (a i : M) at hx
     -- The blocks of the partition cover `Fin n` and are pairwise disjoint
     have hUnion : Finset.univ.biUnion p.toFun = (Finset.univ : Finset (Fin n)) := by
@@ -60,10 +60,12 @@ instance AddCommMonoid.F1module (M : Type u) [AddCommMonoid M] : F1module M wher
     · -- each block-sum lies in the corresponding `HyperAdd.finset`
       simp only [HyperAdd.finset, Set.mem_iUnion]
       refine ⟨fun i => a (i : Fin n), ?_⟩
+      rw [AddMonoid.hadd_eq_sum]
       change (∑ i ∈ p.toFun j, (a i : M))
         = ∑ k : Fin (p.toFun j).card, (a (((p.toFun j).orderIsoOfFin rfl k : Fin n)) : M)
       rw [← hcoe (p.toFun j) (fun i => (a i : M))]
       exact (Equiv.sum_comp ((p.toFun j).orderIsoOfFin rfl).toEquiv
         (fun i => (a (i : Fin n) : M))).symm
-    · change x = ∑ j : Fin m, ∑ i ∈ p.toFun j, (a i : M)
+    · rw [AddMonoid.hadd_eq_sum]
+      change x = ∑ j : Fin m, ∑ i ∈ p.toFun j, (a i : M)
       rw [hx, hsum]
