@@ -54,6 +54,10 @@ def map_add n : mk n  ⟶ mk 1  :=
 def map_proj {n : ℕ} (j : Fin n) : mk n  ⟶ mk 1  :=
   ofFun (fun i => if i = j.succ then 1 else 0) (Fin.eq_of_val_eq rfl)
 
+/-- The projection to the j-th coordinate of n_+, where the coordinates go from 0 to n-1 -/
+def map_proj' (n j : ℕ) : mk n  ⟶ mk 1  :=
+  ofFun (fun i => if i = j.succ then 1 else 0) (Fin.eq_of_val_eq rfl)
+
 /-- The map from n_+ to m_+ given by the identity (it is an inclusion
 or the identity or a projection depending if n < m, n = m or n > m). -/
 def map_inc (n m : ℕ) : mk n  ⟶ mk m :=

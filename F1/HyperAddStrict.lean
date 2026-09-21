@@ -14,16 +14,12 @@ A `HyperAdd M` structure equips `M` with, for every `n : ℕ`, an `n`-ary *hyper
 `hadd n : (Fin n → M) → Set M`, thought of as the set of possible values of the sum of an
 `n`-tuple.
 
-A morphism is a map `f : X → Y` which is compatible with the hyperoperations in the *weak*
-sense:
-`f '' hadd n x ⊆ hadd n (f ∘ x)`.
+A morphism is a map `f : X → Y` which is *strongly* compatible with the hyperoperations:
+`f '' hadd n x = hadd n (f ∘ x)`.
 
-The strong condition (with `=` instead of `⊆`) is *too strong* for the examples we care about:
-a morphism of Γ-spaces `α : X ⟶ Y` induces a map on points which only satisfies the inclusion.
-Concretely, for the Hurewicz map `F1 ⟶ HM ℕ` one has `hadd 2 (1,1) = ∅` on the left (in `𝔽₁`
-the sum `1 + 1` is undefined) and `hadd 2 (1,1) = {2}` on the right.  Note that an inclusion of
-singletons is an equality, so on ordinary additive monoids the weak condition still forces
-additivity: see `HyperAdd.Hom.toAddMonoidHom`.
+For *weak* morphisms just replace `=` by `⊆` in `HyperAdd.Hom.map_hadd`; every proof below
+still works after replacing `Set.image_comp` rewriting by `Set.image_subset` and
+`subset_trans`.
 -/
 
 universe u
@@ -40,13 +36,12 @@ export HyperAdd (hadd)
 
 namespace HyperAdd
 
-/-- A morphism of `HyperAdd` structures: a map weakly compatible with all the
-hyperoperations. -/
+/-- A morphism of `HyperAdd` structures: a map compatible with all the hyperoperations. -/
 structure Hom (X Y : Type u) [HyperAdd X] [HyperAdd Y] : Type u where
   /-- the underlying map -/
   toFun : X → Y
-  /-- weak compatibility with the hyperoperations -/
-  map_hadd : ∀ (n : ℕ) (x : Fin n → X), toFun '' hadd n x ⊆ hadd n (toFun ∘ x)
+  /-- compatibility with the hyperoperations -/
+  map_hadd : ∀ (n : ℕ) (x : Fin n → X), toFun '' hadd n x = hadd n (toFun ∘ x)
 
 namespace Hom
 
@@ -62,30 +57,25 @@ instance : FunLike (Hom X Y) X Y := ⟨toFun, toFun_injective⟩
 
 @[ext] theorem ext {f g : Hom X Y} (h : ∀ x, f x = g x) : f = g := DFunLike.ext _ _ h
 
-theorem image_hadd_subset (f : Hom X Y) (n : ℕ) (x : Fin n → X) :
-    f '' hadd n x ⊆ hadd n (⇑f ∘ x) :=
-  f.map_hadd n x
+/-- The point-free form of the compatibility condition. -/
+theorem image_comp_hadd (f : Hom X Y) (n : ℕ) :
+    Set.image f ∘ hadd (M := X) n = hadd (M := Y) n ∘ (fun x : Fin n → X => ⇑f ∘ x) :=
+  funext fun x => f.map_hadd n x
 
-/-- Weak compatibility, stated on elements. -/
-theorem mem_hadd_of_mem_hadd (f : Hom X Y) (n : ℕ) (x : Fin n → X) {a : X}
-    (ha : a ∈ hadd n x) : f a ∈ hadd n (⇑f ∘ x) :=
-  f.map_hadd n x ⟨a, ha, rfl⟩
+@[simp] theorem image_hadd (f : Hom X Y) (n : ℕ) (x : Fin n → X) :
+    f '' hadd n x = hadd n (⇑f ∘ x) :=
+  f.map_hadd n x
 
 /-- The identity morphism. -/
 protected def id (X : Type u) [HyperAdd X] : Hom X X where
   toFun := _root_.id
-  map_hadd n x := by
-    intro z hz
-    obtain ⟨a, ha, rfl⟩ := hz
-    exact ha
+  map_hadd n x := by simp
 
 /-- Composition of morphisms. -/
 protected def comp (g : Hom Y Z) (f : Hom X Y) : Hom X Z where
   toFun := g.toFun ∘ f.toFun
   map_hadd n x := by
-    intro z hz
-    obtain ⟨a, ha, rfl⟩ := hz
-    exact g.map_hadd n (f.toFun ∘ x) ⟨f.toFun a, f.map_hadd n x ⟨a, ha, rfl⟩, rfl⟩
+    rw [Set.image_comp, f.map_hadd, g.map_hadd, Function.comp_assoc]
 
 @[simp] theorem coe_id : ⇑(Hom.id X) = _root_.id := rfl
 
@@ -182,9 +172,9 @@ abbrev ofHom {X Y : Type u} [HyperAdd X] [HyperAdd Y] (f : HyperAdd.Hom X Y) : o
 
 @[simp] theorem ofHom_hom {X Y : HyperAddCat.{u}} (f : X ⟶ Y) : ofHom f.hom = f := rfl
 
-/-- Morphisms really are (weakly) compatible with the hyperoperations. -/
-theorem image_hadd_subset {X Y : HyperAddCat.{u}} (f : X ⟶ Y) (n : ℕ) (x : Fin n → X) :
-    f.hom '' hadd n x ⊆ hadd n (⇑f.hom ∘ x) :=
+/-- Morphisms really are compatible with the hyperoperations. -/
+theorem image_hadd {X Y : HyperAddCat.{u}} (f : X ⟶ Y) (n : ℕ) (x : Fin n → X) :
+    f.hom '' hadd n x = hadd n (⇑f.hom ∘ x) :=
   f.hom.map_hadd n x
 
 -- The forgetful functor and its faithfulness now come from the `ConcreteCategory` instance:
@@ -207,12 +197,12 @@ def rangeHyperAdd (M : Type u) : HyperAdd M where
 
 attribute [local instance] rangeHyperAdd
 
-/-- With the range hyperoperation, every map is a morphism (with an equality, even). -/
+/-- With the range hyperoperation, every map is a morphism. -/
 def ofMap {X Y : Type u} (f : X → Y) : Hom X Y where
   toFun := f
   map_hadd n x := by
-    change f '' Set.range x ⊆ Set.range (f ∘ x)
-    exact (Set.range_comp f x).symm.subset
+    rw [hadd,hadd, rangeHyperAdd, rangeHyperAdd]
+    simp only [@Set.range_comp]
 
 end HyperAdd
 
@@ -244,32 +234,29 @@ theorem hadd_eq_sum {M : Type u} [AddCommMonoid M] {n : ℕ} (x : Fin n → M) :
 
 end AddMonoid
 
-/-- An additive monoid hom is a morphism of the associated `HyperAdd` structures (here the
-inclusion is even an equality). -/
+/-- An additive monoid hom is a morphism of the associated `HyperAdd` structures. -/
 def AddMonoidHom.toHyperAddHom {M N : Type u} [AddMonoid M] [AddMonoid N] (f : M →+ N) :
     HyperAdd.Hom M N where
   toFun := f
   map_hadd n x := by
-    apply Eq.subset
     rw [AddMonoid.hadd_eq, AddMonoid.hadd_eq, Set.image_singleton, map_list_sum, List.map_ofFn]
 
 @[simp] theorem AddMonoidHom.coe_toHyperAddHom {M N : Type u} [AddMonoid M] [AddMonoid N]
     (f : M →+ N) : ⇑f.toHyperAddHom = ⇑f := rfl
 
 /-- Conversely, any morphism between the hyperstructures of two additive monoids is additive:
-an inclusion of singletons is an equality, so `map_hadd` at `n = 0` gives `g 0 = 0`, and at
-`n = 2` gives `g (a + b) = g a + g b`. -/
+`map_hadd` at `n = 0` gives `g 0 = 0`, and at `n = 2` gives `g (a + b) = g a + g b`. -/
 def HyperAdd.Hom.toAddMonoidHom {M N : Type u} [AddMonoid M] [AddMonoid N]
     (g : HyperAdd.Hom M N) : M →+ N where
   toFun := g
   map_zero' := by
     have h := g.map_hadd 0 Fin.elim0
     rw [AddMonoid.hadd_zero, AddMonoid.hadd_zero, Set.image_singleton] at h
-    simpa using h
+    simpa [Set.singleton_eq_singleton_iff] using h
   map_add' a b := by
     have h := g.map_hadd 2 ![a, b]
     rw [AddMonoid.hadd_two, AddMonoid.hadd_two, Set.image_singleton] at h
-    simpa using h
+    simpa [Set.singleton_eq_singleton_iff] using h
 
 @[simp] theorem HyperAdd.Hom.coe_toAddMonoidHom {M N : Type u} [AddMonoid M] [AddMonoid N]
     (g : HyperAdd.Hom M N) : ⇑g.toAddMonoidHom = ⇑g := rfl
