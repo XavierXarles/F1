@@ -1,95 +1,134 @@
 import Mathlib.CategoryTheory.Category.Pointed
 import Mathlib.Algebra.BigOperators.Fin
-/-! The naturals as category Gamma^op called N -/
-universe u
+/-! The naturals as category Γ^op, called `N`. -/
 
 open CategoryTheory
 
-/-- The pointed finite set `n₊ = {0, 1, …, n}`, realized as `Fin (n + 1)` pointed
-at `0`, viewed as an object of the category `Pointed` of pointed types. -/
-abbrev PointedFin (n : ℕ) : Pointed :=
-  Pointed.of (0 : Fin (n + 1))
-
-/-- The category `N` (Segal's category `Γ` / category of pointed finite sets).
-
-Objects are natural numbers `n : ℕ`, standing for the pointed finite set
-`n₊ = {0, 1, …, n}` via `PointedFin`. We build the `Category N` instance by
-hand: `Hom n m` is *defined to be* `PointedFin n ⟶ PointedFin m` in `Pointed`,
-and `id`/`comp` are literally `Pointed`'s `id`/`comp`. -/
-def N : Type := ℕ
+/-- Objects of `N` (Segal's category `Γ^op`, pointed finite sets).
+The object `⟨n⟩` stands for the pointed set `n₊ = {0, 1, …, n} = Fin (n + 1)`,
+pointed at `0`. The constructor is `N.mk`, written `n₊`. -/
+structure N : Type where
+  /-- The `n` of `n₊`. -/
+  as : ℕ
 
 namespace N
 
+/-- `n₊` is the object `{0, 1, …, n}` of `N`. -/
+scoped postfix:max "₊" => N.mk
+
+/-- The underlying type of `X : N`, namely `Fin (X.as + 1)`. -/
+@[coe] abbrev Carrier (X : N) : Type := Fin (X.as + 1)
+
+instance : CoeSort N Type := ⟨Carrier⟩
+
+/-- The basepoint `0` of `X`. -/
+def point (X : N) : X := 0
+
+@[simp] lemma point_eq (X : N) : X.point = 0 := rfl
+
+/-- `X` viewed as an object of `Pointed`. -/
+abbrev toPointed (X : N) : Pointed := Pointed.of (0 : X)
+
+lemma toPointed_point (X : N) : X.toPointed.point = X.point := rfl
+
+/-- Morphisms `X ⟶ Y` in `N` are the pointed maps `X.toPointed ⟶ Y.toPointed`;
+`id`/`comp` are `Pointed`'s. -/
 instance : Category N where
-  Hom n m := PointedFin n ⟶ PointedFin m
-  id n := 𝟙 (PointedFin n)
+  Hom X Y := X.toPointed ⟶ Y.toPointed
+  id X := 𝟙 X.toPointed
   comp f g := f ≫ g
   id_comp f := Category.id_comp f
   comp_id f := Category.comp_id f
   assoc f g h := Category.assoc f g h
 
-/-- `n₊` as an object of `N`. -/
-def mk (n : ℕ) : N := n
+/-- A morphism of `N` is a function between the underlying types. -/
+instance {X Y : N} : CoeFun (X ⟶ Y) (fun _ => X → Y) where
+  coe f := Pointed.Hom.toFun f
 
-@[simp]
-def unmk (n : N) : ℕ := by trivial
+@[simp] lemma apply_zero {X Y : N} (f : X ⟶ Y) : f 0 = 0 :=
+  Pointed.Hom.map_point f
 
-/-- A morphism `n₊ ⟶ m₊` in `N` is by definition a pointed map
-`Fin (n + 1) → Fin (m + 1)`, i.e. a function sending `0` to `0`. -/
-example (n m : ℕ) : (mk n ⟶ mk m) = Pointed.Hom (PointedFin n) (PointedFin m) := rfl
+@[simp] lemma apply_point {X Y : N} (f : X ⟶ Y) : f X.point = Y.point :=
+  Pointed.Hom.map_point f
 
-/-- A pointed map `Fin (n+1) → Fin (m+1)`, viewed as a morphism `n₊ ⟶ m₊` of `N`. -/
-def ofFun {n m : ℕ} (φ : Fin (n + 1) → Fin (m + 1)) (hφ : φ 0 = 0) : mk n  ⟶ mk m  :=
+@[simp] lemma id_apply (X : N) (x : X) : (𝟙 X : X ⟶ X) x = x := rfl
+
+@[simp] lemma comp_apply {X Y Z : N} (f : X ⟶ Y) (g : Y ⟶ Z) (x : X) :
+    (f ≫ g) x = g (f x) := rfl
+
+@[ext]
+lemma hom_ext {X Y : N} {f g : X ⟶ Y} (h : ∀ x : X, f x = g x) : f = g := by
+  obtain ⟨f, hf⟩ := f
+  obtain ⟨g, hg⟩ := g
+  have : f = g := funext h
+  subst this
+  rfl
+
+/-- A pointed map `X → Y`, viewed as a morphism `X ⟶ Y` of `N`. -/
+def ofFun {X Y : N} (φ : X → Y) (hφ : φ 0 = 0) : X ⟶ Y :=
   Pointed.Hom.mk φ hφ
 
-/-- The morphism viewed as pointed map. -/
-def toFun {n m : N} (f : n ⟶ m) : PointedFin n ⟶ PointedFin m := by
-  trivial
+@[simp] lemma ofFun_apply {X Y : N} (φ : X → Y) (hφ : φ 0 = 0) (x : X) :
+    ofFun φ hφ x = φ x := rfl
 
-/-- The map that gives the n addition. -/
-def map_add n : mk n  ⟶ mk 1  :=
+/- The Natural number associated to an element in N. Obsolete-/
+def unmk (n : N) : ℕ := n.as
+
+/-! ### Sanity checks for the new interface -/
+
+example (n : ℕ) : (0 : n₊) = (n₊).point := rfl
+example (n : ℕ) (i : Fin (n + 1)) : n₊ := i
+example (n : ℕ) (i : n₊) : Fin (n + 1) := i
+example (n : ℕ) : (n₊ : Type) = Fin (n + 1) := rfl
+example (n m : ℕ) : (n₊ ⟶ m₊) = (Pointed.of (0 : Fin (n + 1)) ⟶ Pointed.of (0 : Fin (m + 1))) := rfl
+
+/-! ### Special maps -/
+
+/-- The map that gives the `n`-fold addition. -/
+def map_add (n : ℕ) : n₊ ⟶ 1₊ :=
   ofFun (fun i => if i = 0 then 0 else 1) (Fin.eq_of_val_eq rfl)
 
-/-- The projection to the j-th coordinate of n_+, where the coordinates go from 0 to n-1 -/
-def map_proj {n : ℕ} (j : Fin n) : mk n  ⟶ mk 1  :=
+/-- The projection to the `j`-th coordinate of `n₊`, coordinates going from `0` to `n-1`. -/
+def map_proj {n : ℕ} (j : Fin n) : n₊ ⟶ 1₊ :=
   ofFun (fun i => if i = j.succ then 1 else 0) (Fin.eq_of_val_eq rfl)
 
-/-- The projection to the j-th coordinate of n_+, where the coordinates go from 0 to n-1 -/
-def map_proj' (n j : ℕ) : mk n  ⟶ mk 1  :=
+/-- The projection to the `j`-th coordinate of `n₊`, with `j : ℕ`. -/
+def map_proj' (n j : ℕ) : n₊ ⟶ 1₊ :=
   ofFun (fun i => if i = j.succ then 1 else 0) (Fin.eq_of_val_eq rfl)
 
-/-- The map from n_+ to m_+ given by the identity (it is an inclusion
-or the identity or a projection depending if n < m, n = m or n > m). -/
-def map_inc (n m : ℕ) : mk n  ⟶ mk m :=
-  ofFun (fun i => if h: i < m + 1 then ⟨i, h⟩ else 0) (by grind)
+/-- The map `n₊ ⟶ m₊` given by the identity (an inclusion, the identity or a
+projection depending on whether `n < m`, `n = m` or `n > m`). -/
+def map_inc (n m : ℕ) : n₊ ⟶ m₊ :=
+  ofFun (fun i => if h : (i : ℕ) < m + 1 then ⟨i, h⟩ else 0) (by grind)
 
 lemma succ_zero_one : (0 : Fin 1).succ = (1 : Fin 2) := by decide
 
-lemma fin1_eq_zero : ∀ k : Fin 1, k = 0 := by decide
-
+lemma fin1_eq_zero : ∀ k : 0₊, k = 0 := by decide
 
 /-- The unique pointed map `n₊ ⟶ 0₊`. -/
-def toZero (n : ℕ) : mk n ⟶ mk 0 := ofFun (fun _ => 0) rfl
+def toZero (n : ℕ) : n₊ ⟶ 0₊ := ofFun (fun _ => 0) rfl
 
 /-- The (basepoint) map `0₊ ⟶ n₊`. -/
-def fromZero (n : ℕ) : mk 0 ⟶ mk n := ofFun (fun _ => 0) rfl
+def fromZero (n : ℕ) : 0₊ ⟶ n₊ := ofFun (fun _ => 0) rfl
 
 /-- The function underlying `N.pt i`: it sends `0 ↦ 0` and `1 ↦ i`. -/
-def ptFun {n : ℕ} (i : Fin (n + 1)) : Fin 2 → Fin (n + 1) :=
+def ptFun {X : N} (i : X) : 1₊ → X :=
   fun j => if j = 0 then 0 else i
 
-@[simp] lemma ptFun_zero {n : ℕ} (i : Fin (n + 1)) : ptFun i 0 = 0 := by
+@[simp] lemma ptFun_zero {X : N} (i : X) : ptFun i 0 = 0 := by
   simp [ptFun]
 
-@[simp] lemma ptFun_one {n : ℕ} (i : Fin (n + 1)) : ptFun i 1 = i := by
-  have h : ¬ ((1 : Fin 2) = 0) := by decide
+@[simp] lemma ptFun_one {X : N} (i : X) : ptFun i 1 = i := by
+  have h : ¬ ((1 : 1₊) = 0) := by decide
   simp [ptFun, h]
 
-lemma ptFun_of_ne {n : ℕ} (i : Fin (n + 1)) {j : Fin 2} (hj : ¬ (j = 0)) : ptFun i j = i := by
+lemma ptFun_of_ne {X : N} (i : X) {j : 1₊} (hj : ¬ (j = 0)) : ptFun i j = i := by
   simp [ptFun, hj]
 
-/-- `pt i : 1₊ ⟶ n₊` is the pointed map picking out the element `i` of `n₊`.
-The elements of `Hom_N (1₊, n₊)` are exactly the `pt i`, and `pt 0` is the zero map. -/
-def pt {n : ℕ} (i : Fin (n + 1)) : mk 1 ⟶ mk n := ofFun (ptFun i) (ptFun_zero i)
+/-- `pt i : 1₊ ⟶ X` is the pointed map picking out the element `i` of `X`.
+The elements of `1₊ ⟶ X` are exactly the `pt i`, and `pt 0` is the zero map. -/
+def pt {X : N} (i : X) : 1₊ ⟶ X := ofFun (ptFun i) (ptFun_zero i)
+
+@[simp] lemma pt_apply_one {X : N} (i : X) : pt i 1 = i := ptFun_one i
 
 end N

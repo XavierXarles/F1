@@ -7,9 +7,17 @@ import Mathlib.Algebra.Group.Monoid
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Category.MonCat.Basic
 import Mathlib.CategoryTheory.Functor.FullyFaithful
-/-! HM -/
+/-! # HM
 
-open CategoryTheory
+The Eilenberg–Mac Lane Γ-set of a commutative monoid.  `HM M` is a genuine `GammaSet`: it is
+reduced because `HM M 0₊ = (Fin 0 → M)` is a single point (`HM.pre_reduced`).
+
+The underlying pre-Γ-set is `HM.pre M`; all statements about morphisms are made at that level
+(`(HM M).F ⟶ (HM M').F`), which is definitionally the type of morphisms `HM M ⟶ HM M'` of
+Γ-sets.
+-/
+
+open CategoryTheory N
 
 universe u
 
@@ -59,10 +67,10 @@ lemma mapFun_comp {n m k : ℕ}
 end HM
 
 open HM in
-/-- The Eilenberg–Mac Lane `Γ`-set of a commutative monoid `M`:
-`HM(n₊) = M^{⊕n}`, pointed at `(0,…,0)`. -/
-def HM (M : Type 0) [AddCommMonoid M] : GammaSpace where
-  obj := fun n => ⟨(Fin n → M), fun _ => (0 : M)⟩
+/-- The Eilenberg–Mac Lane *pre*-Γ-set of a commutative monoid `M`:
+`n₊ ↦ M^{⊕n}`, pointed at `(0,…,0)`. -/
+def HM.pre (M : Type 0) [AddCommMonoid M] : preGammaSet where
+  obj := fun n => ⟨(Fin n.as → M), fun _ => (0 : M)⟩
   map := fun {n m} f => ⟨mapFun f.toFun, mapFun_zero f.toFun⟩
   map_id := fun n => by
     apply Pointed.Hom.ext
@@ -72,6 +80,17 @@ def HM (M : Type 0) [AddCommMonoid M] : GammaSpace where
     apply Pointed.Hom.ext
     funext a
     exact mapFun_comp f.toFun g.toFun _ (fun i => rfl) g.map_point a
+
+/-- `HM M` is reduced: `HM M 0₊ = (Fin 0 → M)` has exactly one element. -/
+theorem HM.pre_reduced (M : Type 0) [AddCommMonoid M] : preGammaSet.Reduced (HM.pre M) :=
+  fun _ => funext fun i => i.elim0
+
+/-- **The Eilenberg–Mac Lane Γ-set** of a commutative monoid `M`: `HM(n₊) = M^{⊕n}`, pointed at
+`(0,…,0)`. -/
+def HM (M : Type 0) [AddCommMonoid M] : GammaSet :=
+  ⟨HM.pre M, HM.pre_reduced M⟩
+
+@[simp] theorem HM.F_eq (M : Type 0) [AddCommMonoid M] : (HM M).F = HM.pre M := rfl
 
 
 
@@ -86,47 +105,55 @@ lemma mapFun_hom {n m : ℕ} (φ : Fin (n + 1) → Fin (m + 1)) (h : M →+ N) (
   simp [mapFun, map_sum, apply_ite h]
 
 
-/-- An additive hom `M →+ N` induces a map of `Γ`-sets `HM M ⟶ HM N`,
-given in each degree by applying `h` componentwise. -/
-def hMap (h : M →+ N) : HM M ⟶ HM N where
-  app n := ⟨fun a i => h (a i), by funext i; exact h.map_zero⟩
-  naturality := fun {n m} f => by
-    apply Pointed.Hom.ext
-    funext a
-    exact (mapFun_hom f.toFun h a).symm
+/-- An additive hom `M →+ N` induces a map of Γ-sets `HM M ⟶ HM N`,
+given in each degree by applying `h` componentwise.  It is built as a morphism of the underlying
+pre-Γ-sets, which is definitionally the same thing. -/
+def hMap (h : M →+ N) : HM M ⟶ HM N :=
+  ({ app := fun n => ⟨fun a i => h (a i), by funext i; exact h.map_zero⟩
+     naturality := fun {n m} f => by
+       apply Pointed.Hom.ext
+       funext a
+       exact (mapFun_hom f.toFun h a).symm } : (HM M).F ⟶ (HM N).F)
 
 @[simp] lemma hMap_app_toFun (h : M →+ N) (n : ℕ) (a : Fin n → M) :
-    ((hMap h).app n).toFun a = fun i => h (a i) := rfl
+    Pointed.Hom.toFun (NatTrans.app (hMap h) n₊) a = fun i => h (a i) := rfl
+
+lemma hMap_id (M : Type 0) [AddCommMonoid M] :
+    (hMap (AddMonoidHom.id M) : (HM M).F ⟶ (HM M).F) = 𝟙 ((HM M).F) := by
+  apply preGammaSet.hom_ext
+  intro n
+  apply Pointed.Hom.ext
+  rfl
+
+lemma hMap_comp {M M' M'' : Type 0} [AddCommMonoid M] [AddCommMonoid M'] [AddCommMonoid M'']
+    (f : M →+ M') (g : M' →+ M'') :
+    (hMap (g.comp f) : (HM M).F ⟶ (HM M'').F) = hMap f ≫ hMap g := by
+  apply preGammaSet.hom_ext
+  intro n
+  apply Pointed.Hom.ext
+  rfl
 
 end HM
 
 
 open HM in
-/-- The Eilenberg–Mac Lane functor `AddCommMonCat ⥤ GammaSpace`,
+/-- The Eilenberg–Mac Lane functor `AddCommMonCat ⥤ GammaSet`,
 `M ↦ HM M`, `h ↦ h` applied componentwise. -/
-def HMFunctor : AddCommMonCat ⥤ GammaSpace where
+def HMFunctor : AddCommMonCat ⥤ GammaSet where
   obj M := HM M
   map f := hMap f.hom
-  map_id M := by
-    apply NatTrans.ext
-    funext n
-    apply Pointed.Hom.ext
-    rfl
-  map_comp f g := by
-    apply NatTrans.ext
-    funext n
-    apply Pointed.Hom.ext
-    rfl
+  map_id M := hMap_id M
+  map_comp f g := hMap_comp f.hom g.hom
 
 namespace HM
 
 variable {M M' : Type 0} [AddCommMonoid M] [AddCommMonoid M']
 
-/-- Naturality of a morphism of `Γ`-sets, written out in coordinates. -/
+/-- Naturality of a morphism of Γ-sets, written out in coordinates. -/
 lemma app_mapFun (α : HM M ⟶ HM M') {n m : ℕ} (φ : Fin (n + 1) → Fin (m + 1)) (hφ : φ 0 = 0)
     (a : Fin n → M) :
-    Pointed.Hom.toFun (NatTrans.app α m) (mapFun φ a)
-      = mapFun φ (Pointed.Hom.toFun (NatTrans.app α n) a) := by
+    Pointed.Hom.toFun (NatTrans.app α m₊) (mapFun φ a)
+      = mapFun φ (Pointed.Hom.toFun (NatTrans.app α n₊) a) := by
   have h := NatTrans.naturality α (N.ofFun φ hφ)
   exact congrFun (congrArg Pointed.Hom.toFun h) a
 
@@ -161,7 +188,7 @@ lemma mapFun_collapseFun {n : ℕ} (j : Fin n) (a : Fin n → M) :
       exact (ite_eq_left (congrArg Fin.succ hij)).trans N.succ_zero_one.symm
   funext k
   obtain rfl := N.fin1_eq_zero k
-  show mapFun (collapseFun j) a 0 = a j
+  change mapFun (collapseFun j) a 0 = a j
   calc mapFun (collapseFun j) a 0
       = ∑ i : Fin n, if collapseFun j i.succ = (0 : Fin 1).succ then a i else 0 := rfl
     _ = if collapseFun j j.succ = (0 : Fin 1).succ then a j else 0 :=
@@ -172,34 +199,35 @@ lemma mapFun_collapseFun {n : ℕ} (j : Fin n) (a : Fin n → M) :
 lemma mapFun_addFun (a : Fin 2 → M) : mapFun addFun a = fun _ => a 0 + a 1 := by
   funext k
   obtain rfl := N.fin1_eq_zero k
-  show mapFun addFun a 0 = a 0 + a 1
+  change mapFun addFun a 0 = a 0 + a 1
   calc mapFun addFun a 0
       = ∑ i : Fin 2, if addFun i.succ = (0 : Fin 1).succ then a i else 0 := rfl
     _ = ∑ i : Fin 2, a i := Finset.sum_congr rfl fun i _ => ite_eq_left (addFun_succ i)
     _ = a 0 + a 1 := Fin.sum_univ_two a
 
-/-! ### The degree one component of a map of `Γ`-sets -/
+/-! ### The degree one component of a map of Γ-sets -/
 
 /-- The map `M → M'` underlying `α : HM M ⟶ HM M'`, read off in degree `1`. -/
 def deg1 (α : HM M ⟶ HM M') (x : M) : M' :=
-  Pointed.Hom.toFun (NatTrans.app α (1 : ℕ)) (fun _ => x) 0
+  Pointed.Hom.toFun (NatTrans.app α 1₊) (fun _ => x) 0
 
 lemma deg1_zero (α : HM M ⟶ HM M') : deg1 α 0 = 0 :=
-  congrFun (Pointed.Hom.map_point (NatTrans.app α (1 : ℕ))) 0
+  congrFun (Pointed.Hom.map_point (NatTrans.app α 1₊)) 0
 
 /-- `α` is determined, in every degree, by its degree one component. -/
 lemma deg1_spec (α : HM M ⟶ HM M') {n : ℕ} (a : Fin n → M) (j : Fin n) :
-    Pointed.Hom.toFun (NatTrans.app α n) a j = deg1 α (a j) := by
+    Pointed.Hom.toFun (NatTrans.app α n₊) a j = deg1 α (a j) := by
   have h := congrFun (app_mapFun α (collapseFun j) (collapseFun_zero j) a) 0
   simp_rw [mapFun_collapseFun] at h
-  rw [mapFun_collapseFun j ((α.app n).toFun a)] at h
+  rw [mapFun_collapseFun j (Pointed.Hom.toFun (NatTrans.app α n₊) a)] at h
   exact h.symm
+
 
 lemma deg1_add' (α : HM M ⟶ HM M') (a : Fin 2 → M) :
     deg1 α (a 0 + a 1) = deg1 α (a 0) + deg1 α (a 1) := by
   have h0 := congrFun (app_mapFun α addFun addFun_zero a) 0
   rw [mapFun_addFun, deg1_spec] at h0
-  rw [mapFun_addFun ((α.app (2:ℕ)).toFun a),deg1_spec,deg1_spec] at h0
+  rw [mapFun_addFun ((α.app 2₊).toFun a),deg1_spec,deg1_spec] at h0
   exact h0
 
 lemma deg1_add (α : HM M ⟶ HM M') (x y : M) : deg1 α (x + y) = deg1 α x + deg1 α y := by
@@ -208,16 +236,17 @@ lemma deg1_add (α : HM M ⟶ HM M') (x y : M) : deg1 α (x + y) = deg1 α x + d
   simp only [e1] at h
   exact h
 
-/-- The additive hom underlying a map of `Γ`-sets. -/
+/-- The additive hom underlying a map of Γ-sets. -/
 def toAddMonoidHom (α : HM M ⟶ HM M') : M →+ M' where
   toFun := deg1 α
   map_zero' := deg1_zero α
   map_add' := deg1_add α
 
-/-- Every map of `Γ`-sets between Eilenberg–Mac Lane `Γ`-sets is induced by an additive hom. -/
-lemma hMap_toAddMonoidHom (α : HM M ⟶ HM M') : hMap (toAddMonoidHom α) = α := by
-  apply NatTrans.ext
-  funext n
+/-- Every map of Γ-sets between Eilenberg–Mac Lane Γ-sets is induced by an additive hom. -/
+lemma hMap_toAddMonoidHom (α : HM M ⟶ HM M') :
+    (hMap (toAddMonoidHom α) : (HM M).F ⟶ (HM M').F) = α := by
+  apply preGammaSet.hom_ext
+  intro n
   apply Pointed.Hom.ext
   funext a
   funext j

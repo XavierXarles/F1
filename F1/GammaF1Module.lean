@@ -4,14 +4,14 @@ import Mathlib.Data.Fin.Basic
 import Mathlib.Data.Finset.Sort
 
 /-!
-# The points of a Γ-space form an `F1module`
+# The points of a Γ-set form an `F1module`
 
-We prove `GammaSpace.hadd_assoc`: for every Γ-space `X`, every partition `p` of `Fin n` into
+We prove `GammaSet.hadd_assoc`: for every Γ-set `X`, every partition `p` of `Fin n` into
 `m` blocks and every family of subsets `A : Fin n → Set X.Points`,
 
 `HyperAdd.set X.Points n A ⊆ HyperAdd.set X.Points m (fun j => HyperAdd.finset … (p.toFun j) …)`,
 
-so `X.Points` is an `F1module` and the functor `GammaSpace.toHyperAddCat` in fact lands in
+so `X.Points` is an `F1module` and the functor `GammaSet.toHyperAddCat` in fact lands in
 `F1module`s.  No hypothesis on `X` is needed.
 
 ## The proof
@@ -29,13 +29,13 @@ level `m`, and `X.act (N.restr (p.toFun j)) z` is the required lift of the `j`-t
 three verifications come from identities *in `N`*, transported by functoriality of `X`:
 
 * `N.restr_comp_proj`: `restr F ≫ map_proj k = map_proj (e k)` — the restriction of `z` to a
-  block has the right coordinates (`GammaSpace.proj_act_restr`);
+  block has the right coordinates (`GammaSet.proj_act_restr`);
 * `N.block_comp_proj`: `block p ≫ map_proj j = restr (p.toFun j) ≫ map_add (p.toFun j).card`
   — the `j`-th coordinate of `u` *is* the total sum of the `j`-th block
-  (`GammaSpace.proj_act_block`).  This is the heart of the matter: projecting after regrouping
+  (`GammaSet.proj_act_block`).  This is the heart of the matter: projecting after regrouping
   is the same as summing after restricting;
 * `N.block_comp_add`: `block p ≫ map_add m = map_add n` — regrouping does not change the total
-  sum (`GammaSpace.add_act_block`).
+  sum (`GammaSet.add_act_block`).
 
 The `Finset.orderIsoOfFin` bookkeeping is confined to `N.restrFun_succ_eq_succ_iff`.
 -/
@@ -189,17 +189,17 @@ theorem block_comp_add {n m : ℕ} (p : partition n m) : block p ≫ map_add m =
 
 end N
 
-/-! ## Transport to a Γ-space -/
+/-! ## Transport to a Γ-set -/
 
-namespace GammaSpace
+namespace GammaSet
 
 section Act
 
-variable (X : GammaSpace)
+variable (X : GammaSet)
 
 /-- The action of a morphism of `N` on the levels of `X`. -/
 def act {n m : ℕ} (f : N.mk n ⟶ N.mk m) (z : X.Level n) : X.Level m :=
-  Pointed.Hom.toFun (X.map f) z
+  Pointed.Hom.toFun (X.F.map f) z
 
 theorem proj_eq_act {n : ℕ} (j : Fin n) (z : X.Level n) :
     X.proj j z = X.act (N.map_proj j) z := rfl
@@ -208,8 +208,8 @@ theorem add_eq_act (n : ℕ) (z : X.Level n) : X.add n z = X.act (N.map_add n) z
 
 theorem act_comp {n m k : ℕ} (f : N.mk n ⟶ N.mk m) (g : N.mk m ⟶ N.mk k) (z : X.Level n) :
     X.act g (X.act f z) = X.act (f ≫ g) z :=
-  (congrArg (fun h : X.obj (N.mk n) ⟶ X.obj (N.mk k) => Pointed.Hom.toFun h z)
-    (X.map_comp f g)).symm
+  (congrArg (fun h : X.F.obj (N.mk n) ⟶ X.F.obj (N.mk k) => Pointed.Hom.toFun h z)
+    (X.F.map_comp f g)).symm
 
 theorem act_congr {n m : ℕ} {f g : N.mk n ⟶ N.mk m} (h : f = g) (z : X.Level n) :
     X.act f z = X.act g z :=
@@ -219,7 +219,7 @@ end Act
 
 section Regroup
 
-variable (X : GammaSpace) {n m : ℕ}
+variable (X : GammaSet) {n m : ℕ}
 
 /-- The `k`-th coordinate of the restriction of `z` to a block `F` is the coordinate of `z` at
 the `k`-th element of `F`. -/
@@ -244,9 +244,9 @@ end Regroup
 
 /-! ## The associativity inclusion -/
 
-variable (X : GammaSpace)
+variable (X : GammaSet)
 
-/-- **Hyper-associativity for the points of a Γ-space.** A sum of a tuple can always be
+/-- **Hyper-associativity for the points of a Γ-set.** A sum of a tuple can always be
 computed by regrouping it along any partition: the single lift `z` at level `n` produces, in one
 stroke, a lift at level `m` and a lift of each block. -/
 theorem hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → Set X.Points) :
@@ -274,9 +274,9 @@ theorem hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → Set X.Points) 
     rw [← (X.add_act_block p z).trans hxz]
     exact X.mem_hadd fun _ => rfl
 
-/-- The points of a Γ-space form an `F1module`. -/
+/-- The points of a Γ-set form an `F1module`. -/
 instance : F1module X.Points where
   toHyperAdd := X.HyperAdd
   hadd_assoc p A := X.hadd_assoc p A
 
-end GammaSpace
+end GammaSet

@@ -14,8 +14,8 @@ Since the morphisms are literally those of `HyperAddCat`, the forgetful functor
 
 is full and faithful: `F1moduleCat` is the full subcategory of `HyperAddCat` spanned by the
 objects whose hyperoperations satisfy `hadd_assoc`.  Both `AddMonCat.toHyperAddCat` (for
-commutative monoids) and `GammaSpace.toHyperAddCat` factor through it; the Γ-space case is
-`GammaSpace.toF1moduleCat` below, which exists thanks to `GammaSpace.hadd_assoc`.
+commutative monoids) and `GammaSet.toHyperAddCat` factor through it; the Γ-set case is
+`GammaSet.toF1moduleCat` below, which exists thanks to `GammaSet.hadd_assoc`.
 -/
 
 universe u
@@ -123,7 +123,7 @@ instance : toHyperAddCat.{u}.Full where
 
 end F1moduleCat
 
-/-! ## Commutative monoids and Γ-spaces as `F1module`s -/
+/-! ## Commutative monoids and Γ-sets as `F1module`s -/
 
 /-- The hyper-additive structure of a commutative monoid is an `F1module`
 (`AddCommMonoid.F1module`), so `AddCommMonCat.toHyperAddCat` factors through
@@ -134,29 +134,29 @@ def AddCommMonCat.toF1moduleCat : AddCommMonCat.{u} ⥤ F1moduleCat.{u} where
   map_id _ := by ext x; rfl
   map_comp _ _ := by ext x; rfl
 
-namespace GammaSpace
+namespace GammaSet
 
-/-- **The Γ-space functor, refined.** The points of a Γ-space form an `F1module`
-(`GammaSpace.hadd_assoc`), so the functor of the previous file lifts to `F1moduleCat`. -/
-def toF1moduleCat : GammaSpace ⥤ F1moduleCat.{0} where
+/-- **The Γ-set functor, refined.** The points of a Γ-set form an `F1module`
+(`GammaSet.hadd_assoc`), so the functor of the previous file lifts to `F1moduleCat`. -/
+def toF1moduleCat : GammaSet ⥤ F1moduleCat.{0} where
   obj X := F1moduleCat.of X.Points
   map α := F1moduleCat.ofHom (hyperAddHom α)
   map_id _ := by ext x; rfl
   map_comp _ _ := by ext x; rfl
 
-@[simp] theorem toF1moduleCat_obj (X : GammaSpace) :
+@[simp] theorem toF1moduleCat_obj (X : GammaSet) :
     toF1moduleCat.obj X = F1moduleCat.of X.Points := rfl
 
-@[simp] theorem toF1moduleCat_map_apply {X Y : GammaSpace} (α : X ⟶ Y) (x : X.Points) :
+@[simp] theorem toF1moduleCat_map_apply {X Y : GammaSet} (α : X ⟶ Y) (x : X.Points) :
     (toF1moduleCat.map α).hom x = onPoints α x := rfl
 
-/-- Forgetting the `F1module` structure gives back `GammaSpace.toHyperAddCat`, on objects. -/
-theorem toHyperAddCat_obj_eq (X : GammaSpace) :
+/-- Forgetting the `F1module` structure gives back `GammaSet.toHyperAddCat`, on objects. -/
+theorem toHyperAddCat_obj_eq (X : GammaSet) :
     F1moduleCat.toHyperAddCat.obj (toF1moduleCat.obj X) = toHyperAddCat.obj X := rfl
 
 /-- … and on morphisms. -/
-theorem toHyperAddCat_map_eq {X Y : GammaSpace} (α : X ⟶ Y) (x : X.Points) :
+theorem toHyperAddCat_map_eq {X Y : GammaSet} (α : X ⟶ Y) (x : X.Points) :
     (F1moduleCat.toHyperAddCat.map (toF1moduleCat.map α)).hom x
       = (toHyperAddCat.map α).hom x := rfl
 
-end GammaSpace
+end GammaSet
