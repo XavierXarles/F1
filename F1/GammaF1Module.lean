@@ -4,15 +4,16 @@ import Mathlib.Data.Fin.Basic
 import Mathlib.Data.Finset.Sort
 
 /-!
-# The points of a Γ-set form an `F1module`
+# The points of a Γ-space form an `F1module`
 
-We prove `GammaSet.hadd_assoc`: for every Γ-set `X`, every partition `p` of `Fin n` into
+We prove `GammaSpace.hadd_assoc`: for every Γ-space `X`, every partition `p` of `Fin n` into
 `m` blocks and every family of subsets `A : Fin n → Set X.Points`,
 
 `HyperAdd.set X.Points n A ⊆ HyperAdd.set X.Points m (fun j => HyperAdd.finset … (p.toFun j) …)`,
 
-so `X.Points` is an `F1module` and the functor `GammaSet.toHyperAddCat` in fact lands in
-`F1module`s.  No hypothesis on `X` is needed.
+so `X.Points` is an `F1module` (with zero the basepoint of `X 1₊`, see `point_mem_hadd`) and
+the functor `GammaSpace.toHyperAddCat` in fact lands in `F1module`s.  No hypothesis on `X` is
+needed.
 
 ## The proof
 
@@ -29,13 +30,13 @@ level `m`, and `X.act (N.restr (p.toFun j)) z` is the required lift of the `j`-t
 three verifications come from identities *in `N`*, transported by functoriality of `X`:
 
 * `N.restr_comp_proj`: `restr F ≫ map_proj k = map_proj (e k)` — the restriction of `z` to a
-  block has the right coordinates (`GammaSet.proj_act_restr`);
+  block has the right coordinates (`GammaSpace.proj_act_restr`);
 * `N.block_comp_proj`: `block p ≫ map_proj j = restr (p.toFun j) ≫ map_add (p.toFun j).card`
   — the `j`-th coordinate of `u` *is* the total sum of the `j`-th block
-  (`GammaSet.proj_act_block`).  This is the heart of the matter: projecting after regrouping
+  (`GammaSpace.proj_act_block`).  This is the heart of the matter: projecting after regrouping
   is the same as summing after restricting;
 * `N.block_comp_add`: `block p ≫ map_add m = map_add n` — regrouping does not change the total
-  sum (`GammaSet.add_act_block`).
+  sum (`GammaSpace.add_act_block`).
 
 The `Finset.orderIsoOfFin` bookkeeping is confined to `N.restrFun_succ_eq_succ_iff`.
 -/
@@ -189,7 +190,7 @@ theorem block_comp_add {n m : ℕ} (p : partition n m) : block p ≫ map_add m =
 
 end N
 
-/-! ## Transport to a Γ-set -/
+/-! ## Transport to a Γ-space -/
 
 namespace GammaSet
 
@@ -246,7 +247,7 @@ end Regroup
 
 variable (X : GammaSet)
 
-/-- **Hyper-associativity for the points of a Γ-set.** A sum of a tuple can always be
+/-- **Hyper-associativity for the points of a Γ-space.** A sum of a tuple can always be
 computed by regrouping it along any partition: the single lift `z` at level `n` produces, in one
 stroke, a lift at level `m` and a lift of each block. -/
 theorem hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → Set X.Points) :
@@ -274,9 +275,22 @@ theorem hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → Set X.Points) 
     rw [← (X.add_act_block p z).trans hxz]
     exact X.mem_hadd fun _ => rfl
 
-/-- The points of a Γ-set form an `F1module`. -/
+/-- The basepoint of `X 1₊` is a sum of any number of copies of itself: it is the total sum of
+the basepoint of `X k₊`, all of whose projections are the basepoint. -/
+theorem point_mem_hadd (k : ℕ) :
+    (X.F.obj (N.mk 1)).point ∈ X.hadd k (fun _ => (X.F.obj (N.mk 1)).point) :=
+  (X.mem_hadd_iff _ _).mpr ⟨(X.F.obj (N.mk k)).point,
+    fun i => (Pointed.Hom.map_point (X.F.map (N.map_proj i))).symm,
+    Pointed.Hom.map_point (X.F.map (N.map_add k))⟩
+
+/-- The points of a Γ-space form an `F1module`, with zero the basepoint of `X 1₊`. -/
 instance : F1module X.Points where
   toHyperAdd := X.HyperAdd
+  zero := (X.F.obj (N.mk 1)).point
+  zero_mem k := X.point_mem_hadd k
   hadd_assoc p A := X.hadd_assoc p A
+
+
+@[simp] theorem zero_eq_point : (F1module.zero : X.Points) = (X.F.obj (N.mk 1)).point := rfl
 
 end GammaSet
