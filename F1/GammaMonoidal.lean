@@ -72,12 +72,10 @@ lemma eq_map_apply (Q : GammaSet) {a : ℕ} {f : a₊ ⟶ a₊} (h : 𝟙 _ = f)
 lemma map_zero {Q : GammaSet} {a b : ℕ} (f : a₊ ⟶ b₊)
     (hf : ∀ c, Pointed.Hom.toFun f c = 0)
     (e : (Q.F.obj a₊).X) :
-    Pointed.Hom.toFun (Q.F.map f) e = (Q.F.obj b₊).point := by sorry
-  /-
-  rw [N.eq_of_zero f hf, ← map_map_apply]
-  rw [hQ.eq_point (Pointed.Hom.toFun (Q.map _) e)]
+    Pointed.Hom.toFun (Q.F.map f) e = (Q.F.obj b₊).point := by
+  rw [N.eq_of_zero f hf, ← map_map_apply,
+    Q.reduced.eq_point (Pointed.Hom.toFun (Q.F.map (N.toZero a)) e)]
   exact Pointed.Hom.map_point _
-  -/
 
 /-- If `(p)₊` has only one element (e.g. `p = 0 * k`), a reduced Γ-space is trivial there. -/
 lemma eq_point_of_trivial {Q : GammaSet} {p : ℕ}
@@ -189,7 +187,21 @@ def tensorF : GammaSet where
     refine Quot.ind ?_
     intro p
     rfl}
-  reduced := sorry
+  reduced := by
+    -- Every `⟨m, n, g, x, y⟩` over `0₊` is related to `⟨0, 0, 𝟙, F(0) x, G(0) y⟩`, since `g` is
+    -- the unique map to `0₊` and hence factors as `(toZero m ∧ toZero n) ≫ 𝟙`; the latter is the
+    -- base point because `F` and `G` are reduced.
+    intro e
+    revert e
+    refine Quot.ind ?_
+    rintro ⟨m, n, g, x, y⟩
+    have hg : g = N.smashMap (N.toZero m) (N.toZero n) ≫ N.fromZero 0 :=
+      N.hom_ext_of_fun fun c => (N.fin1_eq_zero _).trans (N.fin1_eq_zero _).symm
+    subst hg
+    refine (Quot.sound (Rel.intro (N.toZero m) (N.toZero n) (N.fromZero 0) x y)).trans ?_
+    rw [F.reduced.eq_point (Pointed.Hom.toFun (F.F.map (N.toZero m)) x),
+      G.reduced.eq_point (Pointed.Hom.toFun (G.F.map (N.toZero n)) y)]
+    rfl
 
 variable {F G}
 
@@ -284,9 +296,10 @@ def descApp (φ : Bimor F G H) (k : ℕ) :
           (Pointed.Hom.toFun (G.F.map b) y))
       rw [φ.nat, map_map_apply])
   map_point := by
-    change Pointed.Hom.toFun (H.F.map (N.fromZero k)) _ = _
-    rw [←preGammaSet.Reduced.eq_point F.reduced (F.F.obj 0₊).point]
-    sorry
+    -- `φ` of the base points lives in `H 0₊ = *`, and `H (fromZero k)` is pointed.
+    have h := H.reduced.eq_point (φ.φ (F.F.obj (N.mk 0)).point (G.F.obj (N.mk 0)).point)
+    exact (congrArg (Pointed.Hom.toFun (H.F.map (N.fromZero k))) h).trans
+      (Pointed.Hom.map_point _)
 
 /-- The morphism `F ∧ G ⟶ H` induced by a bimorphism (into a reduced `H`). -/
 def desc (φ : Bimor F G H) : tensorF F G ⟶ H where
@@ -299,7 +312,7 @@ def desc (φ : Bimor F G H) : tensorF F G ⟶ H where
     intro p
     change Pointed.Hom.toFun (H.F.map (p.g ≫ h)) _ = Pointed.Hom.toFun (H.F.map h)
       (Pointed.Hom.toFun (H.F.map p.g) _)
-    sorry
+    exact (map_map_apply H p.g h _).symm
 
 @[simp] lemma desc_ι (φ : Bimor F G H) {m n : ℕ} (x : (F.F.obj (N.mk m)).X)
     (y : (G.F.obj (N.mk n)).X) :
@@ -326,7 +339,11 @@ def tensorHomF {F F' G G' : GammaSet} (α : F ⟶ F') (β : G ⟶ G') :
           have := Rel.intro (F := F') (G := G') (k := N.unmk k) a b g
             (Pointed.Hom.toFun (α.app _) x) (Pointed.Hom.toFun (β.app _) y)
           rwa [← nat_apply α a x, ← nat_apply β b y] at this)
-      map_point := by sorry }
+      map_point := by
+        apply congrArg (Quot.mk _)
+        change Pre.mk 0 0 _ (Pointed.Hom.toFun (α.app (N.mk 0)) (F.F.obj (N.mk 0)).point)
+            (Pointed.Hom.toFun (β.app (N.mk 0)) (G.F.obj (N.mk 0)).point) = Pre.mk 0 0 _ _ _
+        rw [Pointed.Hom.map_point, Pointed.Hom.map_point] }
   naturality k k' h := by
     apply Pointed.hom_ext'
     intro e
@@ -340,6 +357,571 @@ def tensorHomF {F F' G G' : GammaSet} (α : F ⟶ F') (β : G ⟶ G') :
     Pointed.Hom.toFun ((tensorHomF α β).app (N.mk (m * n))) (ι x y) =
       ι (Pointed.Hom.toFun (α.app _) x) (Pointed.Hom.toFun (β.app _) y) := rfl
 
+/-! ### Basic identities for `tensorHomF` -/
+
+@[simp] lemma comp_app_apply {Q L M : GammaSet} (α : Q ⟶ L) (β : L ⟶ M) (k : N)
+    (e : (Q.F.obj k).X) :
+    Pointed.Hom.toFun ((α ≫ β : Q ⟶ M).app k) e =
+      Pointed.Hom.toFun (β.app k) (Pointed.Hom.toFun (α.app k) e) := rfl
+
+@[simp] lemma id_app_apply (Q : GammaSet) (k : N) (e : (Q.F.obj k).X) :
+    Pointed.Hom.toFun ((𝟙 Q : Q ⟶ Q).app k) e = e := rfl
+
+lemma tensorHomF_id (F G : GammaSet) : tensorHomF (𝟙 F) (𝟙 G) = 𝟙 (tensorF F G) := by
+  apply preGammaSet.hom_ext
+  intro k
+  apply Pointed.hom_ext'
+  intro e
+  revert e
+  refine Quot.ind ?_
+  intro p
+  rfl
+
+lemma tensorHomF_comp {F₁ F₂ F₃ G₁ G₂ G₃ : GammaSet} (f₁ : F₁ ⟶ F₂) (g₁ : F₂ ⟶ F₃)
+    (f₂ : G₁ ⟶ G₂) (g₂ : G₂ ⟶ G₃) :
+    tensorHomF f₁ f₂ ≫ tensorHomF g₁ g₂ = tensorHomF (f₁ ≫ g₁) (f₂ ≫ g₂) := by
+  apply preGammaSet.hom_ext
+  intro k
+  apply Pointed.hom_ext'
+  intro e
+  revert e
+  refine Quot.ind ?_
+  intro p
+  rfl
+
+/-- A map of `N` equal to the identity acts trivially. -/
+lemma map_eq_self (Q : GammaSet) {a : ℕ} {f : a₊ ⟶ a₊} (h : f = 𝟙 _)
+    (e : (Q.F.obj a₊).X) : Pointed.Hom.toFun (Q.F.map f) e = e := by
+  rw [h, map_id_apply]
+
+/-- The computational half of `enc_ext`: after `apply N.hom_ext_enc; intro i j` (and any
+decomposition of `i`, `j` as encodings), simplify both sides and split on `if`s. -/
+macro "enc_fin" : tactic => `(tactic| (
+  simp only [N.comp_toFun, N.id_toFun, N.smashMap_enc, N.assocN_enc, N.assocInvN_enc,
+    N.lamN_enc, N.rhoN_enc, N.swapN_enc, N.incL_toFun, N.incR_toFun, N.pt_toFun,
+    N.ofFun_toFun, N.hom_zero, N.enc_zero_left, N.enc_zero_right]
+  try (split_ifs <;> simp_all)))
+
+/-! ### The wedge is collapsed -/
+
+/-- An element whose second coordinate is the base point is the base point. -/
+lemma mk_point_right {k m n : ℕ} (g : N.mk (m * n) ⟶ N.mk k) (x : (F.F.obj (N.mk m)).X) :
+    (Quot.mk _ ⟨m, n, g, x, (G.F.obj (N.mk n)).point⟩ : ((tensorF F G).F.obj (N.mk k)).X) =
+      ((tensorF F G).F.obj (N.mk k)).point := by
+  have hg : N.smashMap (𝟙 (N.mk m)) (N.fromZero n) ≫ g =
+      N.smashMap (N.toZero m) (𝟙 (N.mk 0)) ≫ N.fromZero k := by
+    apply N.hom_ext_enc
+    intro i j
+    rw [N.fin1_eq_zero j]
+    simp
+  have h1 := Quot.sound (Rel.intro (𝟙 (N.mk m)) (N.fromZero n) g x (G.F.obj (N.mk 0)).point)
+  have h2 := Quot.sound (Rel.intro (N.toZero m) (𝟙 (N.mk 0)) (N.fromZero k) x
+    (G.F.obj (N.mk 0)).point)
+  rw [map_id_apply, Pointed.Hom.map_point] at h1
+  rw [map_id_apply, F.reduced.eq_point (Pointed.Hom.toFun (F.F.map (N.toZero m)) x)] at h2
+  refine h1.symm.trans ?_
+  rw [hg]
+  exact h2
+
+/-- An element whose first coordinate is the base point is the base point. -/
+lemma mk_point_left {k m n : ℕ} (g : N.mk (m * n) ⟶ N.mk k) (y : (G.F.obj (N.mk n)).X) :
+    (Quot.mk _ ⟨m, n, g, (F.F.obj (N.mk m)).point, y⟩ : ((tensorF F G).F.obj (N.mk k)).X) =
+      ((tensorF F G).F.obj (N.mk k)).point := by
+  have hg : N.smashMap (N.fromZero m) (𝟙 (N.mk n)) ≫ g =
+      N.smashMap (𝟙 (N.mk 0)) (N.toZero n) ≫ N.fromZero k := by
+    apply N.hom_ext_enc
+    intro i j
+    rw [N.fin1_eq_zero i]
+    simp
+  have h1 := Quot.sound (Rel.intro (N.fromZero m) (𝟙 (N.mk n)) g (F.F.obj (N.mk 0)).point y)
+  have h2 := Quot.sound (Rel.intro (𝟙 (N.mk 0)) (N.toZero n) (N.fromZero k)
+    (F.F.obj (N.mk 0)).point y)
+  rw [map_id_apply, Pointed.Hom.map_point] at h1
+  rw [map_id_apply, G.reduced.eq_point (Pointed.Hom.toFun (G.F.map (N.toZero n)) y)] at h2
+  refine h1.symm.trans ?_
+  rw [hg]
+  exact h2
+
+@[simp] lemma ι_point_right {m n : ℕ} (x : (F.F.obj (N.mk m)).X) :
+    ι (F := F) (G := G) x (G.F.obj (N.mk n)).point = ((tensorF F G).F.obj (N.mk (m * n))).point :=
+  mk_point_right _ _
+
+@[simp] lemma ι_point_left {m n : ℕ} (y : (G.F.obj (N.mk n)).X) :
+    ι (F := F) (G := G) (F.F.obj (N.mk m)).point y = ((tensorF F G).F.obj (N.mk (m * n))).point :=
+  mk_point_left _ _
+
+/-! ### Trimorphisms and maps out of triple smash products -/
+
+/-- A trimorphism `F, G, H → K`, with values in `K ((m₊ ∧ n₊) ∧ q₊)`. -/
+structure TrimorL (F G H K : GammaSet) where
+  /-- the components -/
+  ψ : ∀ {m n q : ℕ}, (F.F.obj (N.mk m)).X → (G.F.obj (N.mk n)).X →
+    (H.F.obj (N.mk q)).X → (K.F.obj (N.mk (m * n * q))).X
+  /-- naturality -/
+  nat : ∀ {m n q m' n' q' : ℕ} (a : N.mk m ⟶ N.mk m') (b : N.mk n ⟶ N.mk n')
+    (c : N.mk q ⟶ N.mk q') x y z,
+    ψ (Pointed.Hom.toFun (F.F.map a) x) (Pointed.Hom.toFun (G.F.map b) y)
+        (Pointed.Hom.toFun (H.F.map c) z) =
+      Pointed.Hom.toFun (K.F.map (N.smashMap (N.smashMap a b) c)) (ψ x y z)
+
+/-- A trimorphism `F, G, H → K`, with values in `K (m₊ ∧ (n₊ ∧ q₊))`. -/
+structure TrimorR (F G H K : GammaSet) where
+  /-- the components -/
+  ψ : ∀ {m n q : ℕ}, (F.F.obj (N.mk m)).X → (G.F.obj (N.mk n)).X →
+    (H.F.obj (N.mk q)).X → (K.F.obj (N.mk (m * (n * q)))).X
+  /-- naturality -/
+  nat : ∀ {m n q m' n' q' : ℕ} (a : N.mk m ⟶ N.mk m') (b : N.mk n ⟶ N.mk n')
+    (c : N.mk q ⟶ N.mk q') x y z,
+    ψ (Pointed.Hom.toFun (F.F.map a) x) (Pointed.Hom.toFun (G.F.map b) y)
+        (Pointed.Hom.toFun (H.F.map c) z) =
+      Pointed.Hom.toFun (K.F.map (N.smashMap a (N.smashMap b c))) (ψ x y z)
+
+variable {K : GammaSet}
+
+/-- The bimorphism `F ∧ G, H → K` induced by a trimorphism. -/
+def TrimorL.bimor (ψ : TrimorL F G H K) : Bimor (tensorF F G) H K where
+  φ {k q} e z := Quot.lift
+    (fun p => Pointed.Hom.toFun (K.F.map (N.smashMap p.g (𝟙 (N.mk q)))) (ψ.ψ p.x p.y z))
+    (by
+      intro p p' r
+      cases r with
+      | intro a b g x y =>
+        change Pointed.Hom.toFun (K.F.map (N.smashMap (N.smashMap a b ≫ g) (𝟙 _))) _ =
+          Pointed.Hom.toFun (K.F.map (N.smashMap g (𝟙 _)))
+            (ψ.ψ (Pointed.Hom.toFun (F.F.map a) x) (Pointed.Hom.toFun (G.F.map b) y) z)
+        have h := ψ.nat a b (𝟙 _) x y z
+        rw [map_id_apply] at h
+        rw [h, map_map_apply]
+        apply map_congr_apply
+        apply N.hom_ext_enc
+        intro i j
+        obtain ⟨i, i', rfl⟩ := N.enc_surj i
+        enc_fin) e
+  nat {k q k' q'} a c e z := by
+    revert e
+    refine Quot.ind (fun (p : Pre F G k) => ?_)
+    change Pointed.Hom.toFun (K.F.map (N.smashMap (p.g ≫ a) (𝟙 _)))
+        (ψ.ψ p.x p.y (Pointed.Hom.toFun (H.F.map c) z)) =
+      Pointed.Hom.toFun (K.F.map (N.smashMap a c))
+        (Pointed.Hom.toFun (K.F.map (N.smashMap p.g (𝟙 _))) (ψ.ψ p.x p.y z))
+    have h := ψ.nat (𝟙 _) (𝟙 _) c p.x p.y z
+    rw [map_id_apply, map_id_apply] at h
+    rw [h, map_map_apply, map_map_apply]
+    apply map_congr_apply
+    apply N.hom_ext_enc
+    intro i j
+    obtain ⟨i, i', rfl⟩ := N.enc_surj i
+    enc_fin
+
+/-- The bimorphism `F, G ∧ H → K` induced by a trimorphism. -/
+def TrimorR.bimor (ψ : TrimorR F G H K) : Bimor F (tensorF G H) K where
+  φ {m k} x e := Quot.lift
+    (fun p => Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 (N.mk m)) p.g)) (ψ.ψ x p.x p.y))
+    (by
+      intro p p' r
+      cases r with
+      | intro a b g y z =>
+        change Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 _) (N.smashMap a b ≫ g))) _ =
+          Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 _) g))
+            (ψ.ψ x (Pointed.Hom.toFun (G.F.map a) y) (Pointed.Hom.toFun (H.F.map b) z))
+        have h := ψ.nat (𝟙 _) a b x y z
+        rw [map_id_apply] at h
+        rw [h, map_map_apply]
+        apply map_congr_apply
+        apply N.hom_ext_enc
+        intro i j
+        obtain ⟨j, j', rfl⟩ := N.enc_surj j
+        enc_fin) e
+  nat {m k m' k'} a c x e := by
+    revert e
+    refine Quot.ind (fun (p : Pre G H k) => ?_)
+    change Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 _) (p.g ≫ c)))
+        (ψ.ψ (Pointed.Hom.toFun (F.F.map a) x) p.x p.y) =
+      Pointed.Hom.toFun (K.F.map (N.smashMap a c))
+        (Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 _) p.g)) (ψ.ψ x p.x p.y))
+    have h := ψ.nat a (𝟙 _) (𝟙 _) x p.x p.y
+    rw [map_id_apply, map_id_apply] at h
+    rw [h, map_map_apply, map_map_apply]
+    apply map_congr_apply
+    apply N.hom_ext_enc
+    intro i j
+    obtain ⟨j, j', rfl⟩ := N.enc_surj j
+    enc_fin
+
+/-- The morphism `(F ∧ G) ∧ H ⟶ K` induced by a trimorphism. -/
+def descL (ψ : TrimorL F G H K) : tensorF (tensorF F G) H ⟶ K := desc ψ.bimor
+
+/-- The morphism `F ∧ (G ∧ H) ⟶ K` induced by a trimorphism. -/
+def descR (ψ : TrimorR F G H K) : tensorF F (tensorF G H) ⟶ K := desc ψ.bimor
+
+lemma descL_ι (ψ : TrimorL F G H K) {m n q : ℕ} (x : (F.F.obj (N.mk m)).X)
+    (y : (G.F.obj (N.mk n)).X) (z : (H.F.obj (N.mk q)).X) :
+    Pointed.Hom.toFun ((descL ψ).app (N.mk (m * n * q))) (ι (ι x y) z) = ψ.ψ x y z := by
+  rw [descL, desc_ι]
+  change Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 _) (𝟙 _))) (ψ.ψ x y z) = _
+  rw [N.smashMap_id, map_id_apply]
+
+lemma descR_ι (ψ : TrimorR F G H K) {m n q : ℕ} (x : (F.F.obj (N.mk m)).X)
+    (y : (G.F.obj (N.mk n)).X) (z : (H.F.obj (N.mk q)).X) :
+    Pointed.Hom.toFun ((descR ψ).app (N.mk (m * (n * q)))) (ι x (ι y z)) = ψ.ψ x y z := by
+  rw [descR, desc_ι]
+  change Pointed.Hom.toFun (K.F.map (N.smashMap (𝟙 _) (𝟙 _))) (ψ.ψ x y z) = _
+  rw [N.smashMap_id, map_id_apply]
+
+/-! ### The associator -/
+
+variable (F G H)
+
+/-- `x, y, z ↦ ι x (ι y z)`, transported to `(m₊ ∧ n₊) ∧ q₊`. -/
+def assocHomT : TrimorL F G H (tensorF F (tensorF G H)) where
+  ψ x y z := Pointed.Hom.toFun ((tensorF F (tensorF G H)).F.map (N.assocInvN _ _ _)) (ι x (ι y z))
+  nat a b c x y z := by
+    rw [ι_nat b c, ι_nat a (N.smashMap b c), map_map_apply, map_map_apply]
+    apply map_congr_apply
+    apply N.hom_ext_enc
+    intro i j
+    obtain ⟨j, j', rfl⟩ := N.enc_surj j
+    enc_fin
+
+/-- `x, y, z ↦ ι (ι x y) z`, transported to `m₊ ∧ (n₊ ∧ q₊)`. -/
+def assocInvT : TrimorR F G H (tensorF (tensorF F G) H) where
+  ψ x y z := Pointed.Hom.toFun ((tensorF (tensorF F G) H).F.map (N.assocN _ _ _)) (ι (ι x y) z)
+  nat a b c x y z := by
+    rw [ι_nat a b, ι_nat (N.smashMap a b) c, map_map_apply, map_map_apply]
+    apply map_congr_apply
+    apply N.hom_ext_enc
+    intro i j
+    obtain ⟨i, i', rfl⟩ := N.enc_surj i
+    enc_fin
+
+variable {F G H}
+
+@[simp] lemma assocHom_ι {m n q : ℕ} (x : (F.F.obj (N.mk m)).X)
+    (y : (G.F.obj (N.mk n)).X) (z : (H.F.obj (N.mk q)).X) :
+    Pointed.Hom.toFun ((descL (assocHomT F G H)).app (N.mk (m * n * q))) (ι (ι x y) z) =
+      Pointed.Hom.toFun ((tensorF F (tensorF G H)).F.map (N.assocInvN m n q)) (ι x (ι y z)) :=
+  descL_ι _ x y z
+
+@[simp] lemma assocInv_ι {m n q : ℕ} (x : (F.F.obj (N.mk m)).X)
+    (y : (G.F.obj (N.mk n)).X) (z : (H.F.obj (N.mk q)).X) :
+    Pointed.Hom.toFun ((descR (assocInvT F G H)).app (N.mk (m * (n * q)))) (ι x (ι y z)) =
+      Pointed.Hom.toFun ((tensorF (tensorF F G) H).F.map (N.assocN m n q)) (ι (ι x y) z) :=
+  descR_ι _ x y z
+
+variable (F G H)
+
+/-- **The associator** `(F ∧ G) ∧ H ≅ F ∧ (G ∧ H)`. -/
+def associator : tensorF (tensorF F G) H ≅ tensorF F (tensorF G H) where
+  hom := descL (assocHomT F G H)
+  inv := descR (assocInvT F G H)
+  hom_inv_id := by
+    apply Gens.ext (gens₃L F G H)
+    rintro ⟨⟨⟨m, x⟩, ⟨n, y⟩⟩, ⟨q, z⟩⟩
+    dsimp only [gens₃L, gens₂, Gens.tensor, Gens.triv]
+    simp only [comp_app_apply, id_app_apply, assocHom_ι, nat_apply, assocInv_ι, map_map_apply]
+    apply map_eq_self
+    apply N.hom_ext_enc
+    intro i j
+    obtain ⟨i, i', rfl⟩ := N.enc_surj i
+    enc_fin
+  inv_hom_id := by
+    apply Gens.ext (gens₃R F G H)
+    rintro ⟨⟨m, x⟩, ⟨⟨n, y⟩, ⟨q, z⟩⟩⟩
+    dsimp only [gens₃R, gens₂, Gens.tensor, Gens.triv]
+    simp only [comp_app_apply, id_app_apply, assocHom_ι, nat_apply, assocInv_ι, map_map_apply]
+    apply map_eq_self
+    apply N.hom_ext_enc
+    intro i j
+    obtain ⟨j, j', rfl⟩ := N.enc_surj j
+    enc_fin
+
+variable {F G H}
+
+@[simp] lemma associator_hom_ι {m n q : ℕ} (x : (F.F.obj (N.mk m)).X)
+    (y : (G.F.obj (N.mk n)).X) (z : (H.F.obj (N.mk q)).X) :
+    Pointed.Hom.toFun ((associator F G H).hom.app (N.mk (m * n * q))) (ι (ι x y) z) =
+      Pointed.Hom.toFun ((tensorF F (tensorF G H)).F.map (N.assocInvN m n q)) (ι x (ι y z)) :=
+  descL_ι _ x y z
+
+/-! ### The unitors -/
+
+/-- The generator `1 ∈ F1(1₊)`.  It is given this name (rather than written `(1 : Fin 2)`) so
+that its type is syntactically `(F1.F.obj 1₊).X`, which is what the lemmas about `ι` expect. -/
+def one₁ : (F1.F.obj (N.mk 1)).X := (1 : Fin 2)
+
+
+/-- `F1` is the free Γ-set on `1 ∈ F1(1₊)`: `ι i y` is `ι 1 y` pushed along `pt i ∧ 𝟙`. -/
+lemma ι_F1_left {m n : ℕ} (i : (F1.F.obj (N.mk m)).X) (y : (G.F.obj (N.mk n)).X) :
+    ι (F := F1) (G := G) (m := m) i y =
+      Pointed.Hom.toFun ((tensorF F1 G).F.map (N.smashMap (N.pt (X := N.mk m) i) (𝟙 _)))
+        (ι (F := F1) (G := G) (m := 1) one₁ y) := by
+  have h := ι_nat (F := F1) (G := G) (N.pt (X := N.mk m) i) (𝟙 _) one₁ y
+  rw [map_id_apply] at h
+  exact (congrArg (fun t => ι (F := F1) (G := G) t y)
+    (N.pt_apply_one (X := N.mk m) i).symm).trans h
+
+lemma ι_F1_right {m n : ℕ} (x : (F.F.obj (N.mk m)).X) (j : (F1.F.obj (N.mk n)).X) :
+    ι (F := F) (G := F1) (n := n) x j =
+      Pointed.Hom.toFun ((tensorF F F1).F.map (N.smashMap (𝟙 _) (N.pt (X := N.mk n) j)))
+        (ι (F := F) (G := F1) (n := 1) x one₁) := by
+  have h := ι_nat (F := F) (G := F1) (𝟙 _) (N.pt (X := N.mk n) j) x one₁
+  rw [map_id_apply] at h
+  exact (congrArg (fun t => ι (F := F) (G := F1) x t)
+    (N.pt_apply_one (X := N.mk n) j).symm).trans h
+
+variable (G)
+
+/-- `i, y ↦ G(j ↦ (i, j)) y`. -/
+def lamBimor : Bimor F1 G G where
+  φ {m n} i y := Pointed.Hom.toFun (G.F.map (N.incL (m := m) (n := n) i)) y
+  nat {m n m' n'} a b i y := by
+    change Pointed.Hom.toFun (G.F.map (N.incL (Pointed.Hom.toFun a i)))
+      (Pointed.Hom.toFun (G.F.map b) y) = _
+    rw [map_map_apply, map_map_apply]
+    apply map_congr_apply
+    apply N.hom_ext_of_fun
+    intro j
+    exact (N.smashMap_enc a b i j).symm
+
+/-- `y, j ↦ G(i ↦ (i, j)) y`. -/
+def rhoBimor : Bimor G F1 G where
+  φ {m n} y j := Pointed.Hom.toFun (G.F.map (N.incR (m := m) (n := n) j)) y
+  nat {m n m' n'} a b y j := by
+    change Pointed.Hom.toFun (G.F.map (N.incR (Pointed.Hom.toFun b j)))
+      (Pointed.Hom.toFun (G.F.map a) y) = _
+    rw [map_map_apply, map_map_apply]
+    apply map_congr_apply
+    apply N.hom_ext_of_fun
+    intro i
+    exact (N.smashMap_enc a b i j).symm
+
+/-- `G ⟶ F1 ∧ G`, `y ↦ ι 1 y`. -/
+def lamInv : G ⟶ tensorF F1 G where
+  app k :=
+    { toFun := fun y => Pointed.Hom.toFun ((tensorF F1 G).F.map (N.lamN (N.unmk k)))
+        (ι (F := F1) (G := G) (m := 1) (n := N.unmk k) one₁ y)
+      map_point := by
+        change Pointed.Hom.toFun _ (ι (F := F1) (G := G) (m := 1) (n := N.unmk k) one₁
+          (G.F.obj (N.mk (N.unmk k))).point) = _
+        exact (congrArg (Pointed.Hom.toFun ((tensorF F1 G).F.map (N.lamN (N.unmk k))))
+          (ι_point_right (F := F1) (G := G) (m := 1) (n := N.unmk k) one₁)).trans
+          (Pointed.Hom.map_point _) }
+  naturality := by
+    rintro ⟨k⟩ ⟨k'⟩ h
+    apply Pointed.hom_ext'
+    intro y
+    change Pointed.Hom.toFun ((tensorF F1 G).F.map (N.lamN k'))
+        (ι (F := F1) (m := 1) one₁ (Pointed.Hom.toFun (G.F.map h) y)) =
+      Pointed.Hom.toFun ((tensorF F1 G).F.map h)
+        (Pointed.Hom.toFun ((tensorF F1 G).F.map (N.lamN k))
+          (ι (F := F1) (m := 1) one₁ y))
+    have H : N.smashMap (𝟙 (N.mk 1)) h ≫ N.lamN k' = N.lamN k ≫ h := by
+      apply N.hom_ext_enc
+      intro i j
+      enc_fin
+    exact (congrArg (Pointed.Hom.toFun ((tensorF F1 G).F.map (N.lamN k')))
+      (ι_map_right (F := F1) h one₁ y)).trans
+      ((map_map_apply _ _ _ _).trans ((map_congr_apply _ H _).trans
+        (map_map_apply _ _ _ _).symm))
+
+/-- `G ⟶ G ∧ F1`, `y ↦ ι y 1`. -/
+def rhoInv : G ⟶ tensorF G F1 where
+  app k :=
+    { toFun := fun y => Pointed.Hom.toFun ((tensorF G F1).F.map (N.rhoN (N.unmk k)))
+        (ι (F := G) (G := F1) (m := N.unmk k) (n := 1) y one₁)
+      map_point := by
+        change Pointed.Hom.toFun _ (ι (F := G) (G := F1) (m := N.unmk k) (n := 1)
+          (G.F.obj (N.mk (N.unmk k))).point one₁) = _
+        exact (congrArg (Pointed.Hom.toFun ((tensorF G F1).F.map (N.rhoN (N.unmk k))))
+          (ι_point_left (F := G) (G := F1) (m := N.unmk k) (n := 1) one₁)).trans
+          (Pointed.Hom.map_point _) }
+  naturality := by
+    rintro ⟨k⟩ ⟨k'⟩ h
+    apply Pointed.hom_ext'
+    intro y
+    change Pointed.Hom.toFun ((tensorF G F1).F.map (N.rhoN k'))
+        (ι (G := F1) (n := 1) (Pointed.Hom.toFun (G.F.map h) y) one₁) =
+      Pointed.Hom.toFun ((tensorF G F1).F.map h)
+        (Pointed.Hom.toFun ((tensorF G F1).F.map (N.rhoN k))
+          (ι (G := F1) (n := 1) y one₁))
+    have H : N.smashMap h (𝟙 (N.mk 1)) ≫ N.rhoN k' = N.rhoN k ≫ h := by
+      apply N.hom_ext_enc
+      intro i j
+      enc_fin
+    exact (congrArg (Pointed.Hom.toFun ((tensorF G F1).F.map (N.rhoN k')))
+      (ι_map_left (G := F1) h y one₁)).trans
+      ((map_map_apply _ _ _ _).trans ((map_congr_apply _ H _).trans
+        (map_map_apply _ _ _ _).symm))
+
+variable {G}
+
+@[simp] lemma lam_ι {m n : ℕ} (i : (F1.F.obj (N.mk m)).X) (y : (G.F.obj (N.mk n)).X) :
+    Pointed.Hom.toFun ((desc (lamBimor G)).app (N.mk (m * n))) (ι (F := F1) i y) =
+      Pointed.Hom.toFun (G.F.map (N.incL (m := m) (n := n) i)) y :=
+  desc_ι _ _ _
+
+@[simp] lemma rho_ι {m n : ℕ} (y : (G.F.obj (N.mk m)).X) (j : (F1.F.obj (N.mk n)).X) :
+    Pointed.Hom.toFun ((desc (rhoBimor G)).app (N.mk (m * n))) (ι (G := F1) y j) =
+      Pointed.Hom.toFun (G.F.map (N.incR (m := m) (n := n) j)) y :=
+  desc_ι _ _ _
+
+@[simp] lemma lamInv_apply {n : ℕ} (y : (G.F.obj (N.mk n)).X) :
+    Pointed.Hom.toFun ((lamInv G).app (N.mk n)) y =
+      Pointed.Hom.toFun ((tensorF F1 G).F.map (N.lamN n)) (ι (F := F1) (m := 1) one₁ y) :=
+  rfl
+
+@[simp] lemma rhoInv_apply {n : ℕ} (y : (G.F.obj (N.mk n)).X) :
+    Pointed.Hom.toFun ((rhoInv G).app (N.mk n)) y =
+      Pointed.Hom.toFun ((tensorF G F1).F.map (N.rhoN n)) (ι (G := F1) (n := 1) y one₁) :=
+  rfl
+
+variable (G)
+
+/-- **The left unitor** `F1 ∧ G ≅ G`. -/
+def leftUnitor : tensorF F1 G ≅ G where
+  hom := desc (lamBimor G)
+  inv := lamInv G
+  hom_inv_id := by
+    apply Gens.ext (gens₂ F1 G)
+    rintro ⟨⟨m, i⟩, ⟨n, y⟩⟩
+    dsimp only [gens₂, Gens.tensor, Gens.triv]
+    simp only [comp_app_apply, id_app_apply, lam_ι, lamInv_apply, ι_map_right, map_map_apply]
+    rw [ι_F1_left (G := G) i y]
+    apply map_congr_apply
+    change Fin (m + 1) at i
+    apply N.hom_ext_enc
+    intro c j
+    enc_fin
+  inv_hom_id := by
+    apply Gens.ext (Gens.triv G)
+    rintro ⟨n, y⟩
+    dsimp only [Gens.triv]
+    simp only [comp_app_apply, id_app_apply, lam_ι, nat_apply, lamInv_apply, map_map_apply]
+    apply map_eq_self
+    apply N.hom_ext_of_fun
+    intro j
+    exact (N.lamN_enc (1 : Fin 2) j).trans (by simp)
+
+/-- **The right unitor** `G ∧ F1 ≅ G`. -/
+def rightUnitor : tensorF G F1 ≅ G where
+  hom := desc (rhoBimor G)
+  inv := rhoInv G
+  hom_inv_id := by
+    apply Gens.ext (gens₂ G F1)
+    rintro ⟨⟨m, y⟩, ⟨n, j⟩⟩
+    dsimp only [gens₂, Gens.tensor, Gens.triv]
+    simp only [comp_app_apply, id_app_apply, rho_ι, rhoInv_apply, ι_map_left, map_map_apply]
+    rw [ι_F1_right (F := G) y j]
+    apply map_congr_apply
+    change Fin (n + 1) at j
+    apply N.hom_ext_enc
+    intro i c
+    enc_fin
+  inv_hom_id := by
+    apply Gens.ext (Gens.triv G)
+    rintro ⟨n, y⟩
+    dsimp only [Gens.triv]
+    simp only [comp_app_apply, id_app_apply, rho_ι, nat_apply, rhoInv_apply, map_map_apply]
+    apply map_eq_self
+    apply N.hom_ext_of_fun
+    intro j
+    exact (N.rhoN_enc j (1 : Fin 2)).trans (by simp)
+
+variable {G}
+
+@[simp] lemma leftUnitor_hom_ι {m n : ℕ} (i : (F1.F.obj (N.mk m)).X) (y : (G.F.obj (N.mk n)).X) :
+    Pointed.Hom.toFun ((leftUnitor G).hom.app (N.mk (m * n))) (ι (F := F1) i y) =
+      Pointed.Hom.toFun (G.F.map (N.incL (m := m) (n := n) i)) y :=
+  desc_ι _ _ _
+
+@[simp] lemma rightUnitor_hom_ι {m n : ℕ} (y : (G.F.obj (N.mk m)).X) (j : (F1.F.obj (N.mk n)).X) :
+    Pointed.Hom.toFun ((rightUnitor G).hom.app (N.mk (m * n))) (ι (G := F1) y j) =
+      Pointed.Hom.toFun (G.F.map (N.incR (m := m) (n := n) j)) y :=
+  desc_ι _ _ _
+
+/-! ### Coherence -/
+
+lemma associator_naturality {F₁ F₂ F₃ G₁ G₂ G₃ : GammaSet} (f₁ : F₁ ⟶ G₁) (f₂ : F₂ ⟶ G₂)
+    (f₃ : F₃ ⟶ G₃) :
+    tensorHomF (tensorHomF f₁ f₂) f₃ ≫ (associator G₁ G₂ G₃).hom =
+      (associator F₁ F₂ F₃).hom ≫ tensorHomF f₁ (tensorHomF f₂ f₃) := by
+  apply Gens.ext (gens₃L F₁ F₂ F₃)
+  rintro ⟨⟨⟨m, x⟩, ⟨n, y⟩⟩, ⟨q, z⟩⟩
+  dsimp only [gens₃L, gens₂, Gens.tensor, Gens.triv]
+  simp only [comp_app_apply, tensorHomF_ι, associator_hom_ι, nat_apply]
+
+lemma leftUnitor_naturality {X Y : GammaSet} (f : X ⟶ Y) :
+    tensorHomF (𝟙 F1) f ≫ (leftUnitor Y).hom = (leftUnitor X).hom ≫ f := by
+  apply Gens.ext (gens₂ F1 X)
+  rintro ⟨⟨m, i⟩, ⟨n, x⟩⟩
+  dsimp only [gens₂, Gens.tensor, Gens.triv]
+  simp only [comp_app_apply, tensorHomF_ι, id_app_apply, leftUnitor_hom_ι, nat_apply]
+
+lemma rightUnitor_naturality {X Y : GammaSet} (f : X ⟶ Y) :
+    tensorHomF f (𝟙 F1) ≫ (rightUnitor Y).hom = (rightUnitor X).hom ≫ f := by
+  apply Gens.ext (gens₂ X F1)
+  rintro ⟨⟨m, x⟩, ⟨n, j⟩⟩
+  dsimp only [gens₂, Gens.tensor, Gens.triv]
+  simp only [comp_app_apply, tensorHomF_ι, id_app_apply, rightUnitor_hom_ι, nat_apply]
+
+lemma pentagon (W X Y Z : GammaSet) :
+    tensorHomF (associator W X Y).hom (𝟙 Z) ≫ (associator W (tensorF X Y) Z).hom ≫
+        tensorHomF (𝟙 W) (associator X Y Z).hom =
+      (associator (tensorF W X) Y Z).hom ≫ (associator W X (tensorF Y Z)).hom := by
+  apply Gens.ext (gens₄ W X Y Z)
+  rintro ⟨⟨⟨⟨a, w⟩, ⟨b, x⟩⟩, ⟨c, y⟩⟩, ⟨d, z⟩⟩
+  dsimp only [gens₄, gens₃L, gens₂, Gens.tensor, Gens.triv]
+  simp only [comp_app_apply, tensorHomF_ι, id_app_apply, associator_hom_ι, nat_apply,
+    ι_map_left, ι_map_right, map_map_apply]
+  apply map_congr_apply
+  apply N.hom_ext_enc
+  intro i j
+  obtain ⟨j, j', rfl⟩ := N.enc_surj j
+  obtain ⟨j', j'', rfl⟩ := N.enc_surj j'
+  enc_fin
+
+lemma triangle (X Y : GammaSet) :
+    (associator X F1 Y).hom ≫ tensorHomF (𝟙 X) (leftUnitor Y).hom =
+      tensorHomF (rightUnitor X).hom (𝟙 Y) := by
+  apply Gens.ext (gens₃L X F1 Y)
+  rintro ⟨⟨⟨m, x⟩, ⟨n, i⟩⟩, ⟨q, y⟩⟩
+  dsimp only [gens₃L, gens₂, Gens.tensor, Gens.triv]
+  simp only [comp_app_apply, tensorHomF_ι, id_app_apply, associator_hom_ι, nat_apply,
+    leftUnitor_hom_ι, rightUnitor_hom_ι, ι_map_left, ι_map_right, map_map_apply]
+  apply map_congr_apply
+  change Fin (n + 1) at i
+  apply N.hom_ext_enc
+  intro i j
+  enc_fin
+
 end Day
+
+open MonoidalCategory
+
+/-- The monoidal structure data on `GammaSet`: smash product, unit `F1`, … -/
+instance : MonoidalCategoryStruct GammaSet where
+  tensorObj := Day.tensorF
+  whiskerLeft X _ _ f := Day.tensorHomF (𝟙 X) f
+  whiskerRight f Y := Day.tensorHomF f (𝟙 Y)
+  tensorHom := Day.tensorHomF
+  tensorUnit := F1
+  associator := Day.associator
+  leftUnitor := Day.leftUnitor
+  rightUnitor := Day.rightUnitor
+
+/-- **`GammaSet` is a monoidal category** under the smash product. -/
+instance : MonoidalCategory GammaSet where
+  tensorHom_def f g := by
+    change Day.tensorHomF f g = Day.tensorHomF f (𝟙 _) ≫ Day.tensorHomF (𝟙 _) g
+    rw [Day.tensorHomF_comp, Category.comp_id, Category.id_comp]
+  id_tensorHom_id := Day.tensorHomF_id
+  tensorHom_comp_tensorHom f₁ f₂ g₁ g₂ := Day.tensorHomF_comp f₁ g₁ f₂ g₂
+  whiskerLeft_id := Day.tensorHomF_id
+  id_whiskerRight := Day.tensorHomF_id
+  associator_naturality := Day.associator_naturality
+  leftUnitor_naturality := Day.leftUnitor_naturality
+  rightUnitor_naturality := Day.rightUnitor_naturality
+  pentagon := Day.pentagon
+  triangle := Day.triangle
 
 end GammaSet
