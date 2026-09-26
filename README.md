@@ -66,7 +66,6 @@ The dependency order is roughly the order below.
 
 * `N.lean` — the category `N ≃ Γᵒᵖ` of pointed finite sets `n₊`; special maps: fold `map_add`,
   projections `map_proj`, `toZero`, `fromZero`, points `pt i : 1₊ ⟶ n₊`.
-* `NO.lean` — an older encoding of `N` (objects are natural numbers). Kept for reference.
 * `Smash.lean` — product and smash product `X ⋀ Y` of pointed types, universal property, functoriality.
 * `Gamma.lean` — pre-Γ-sets (`N ⥤ Pointed`), the reducedness condition `F(0₊) = *`, the category
   `GammaSet`, and the unit Γ-set `F1 = 𝕊`.
