@@ -1,0 +1,547 @@
+\documentclass[11pt,a4paper]{amsart}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{etoolbox}
+\usepackage[hidelinks]{hyperref}
+\usepackage[margin=2.8cm]{geometry}
+
+% ---------------------------------------------------------------
+\newcommand{\lean}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\file}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\F}{\mathbb{F}_1}
+\newcommand{\Sph}{\mathbb{S}}
+\newcommand{\cN}{\mathcal{N}}
+\newcommand{\cP}{\mathcal{P}}
+\newcommand{\Set}{\mathbf{Set}}
+\newcommand{\Pt}{\mathbf{Set}_*}
+\newcommand{\GSet}{\Gamma\mathbf{Set}}
+\newcommand{\CMon}{\mathbf{CMon}}
+\newcommand{\Mon}{\mathbf{Mon}}
+\newcommand{\HAdd}{\mathbf{HAdd}}
+\newcommand{\FMod}{\F\mathbf{Mod}}
+\newcommand{\Hom}{\operatorname{Hom}}
+\newcommand{\Env}{\operatorname{Env}}
+\newcommand{\Ev}{\operatorname{Ev}}
+\newcommand{\Nv}{\operatorname{Nv}}
+\newcommand{\hs}{\boxplus}
+\newcommand{\sma}{\wedge}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\leansep}{}
+\newcommand{\leanitem}[1]{\leansep\lean{#1}\gdef\leansep{, \allowbreak}}
+\newcommand{\fileitem}[1]{\leansep\file{#1}\gdef\leansep{, \allowbreak}}
+\newcommand{\leanref}[2]{\par\smallskip\noindent{\raggedright\emph{Lean:}
+  \gdef\leansep{}\forcsvlist{\leanitem}{#1} \emph{in} \gdef\leansep{}\forcsvlist{\fileitem}{#2}.\par}\smallskip}
+
+% ---------------------------------------------------------------
+\title[A Lean formalization of $\Gamma$-sets as $\F$-modules]{A Lean formalization of Segal's $\Gamma$-sets as $\F$-modules:\\
+hyper-operations, the nerve adjunction and the smash product}
+\date{\today}
+
+\begin{document}
+\sloppy
+
+\begin{abstract}
+We describe the content of a Lean~4/Mathlib formalization of the elementary theory of Segal's
+$\Gamma$-sets, regarded (following Connes--Consani) as modules over the ``field with one
+element'' $\F$. The formalization covers: the Eilenberg--Mac~Lane functor and its full
+faithfulness; the spherical functor and its adjunction with evaluation at $1_+$, together with a
+counterexample showing that the reducedness condition is necessary; the $n$-ary hyper-operations on
+the points of a $\Gamma$-set introduced by L.~Xu, and a law of generalized associativity which makes
+these points into what we call an \emph{$\F$-module}; a nerve construction giving a right adjoint to
+the points functor; the enveloping commutative monoid of an $\F$-module; and the monoidal structure
+on $\Gamma$-sets given by the smash product. All results are proved without \lean{sorry}, in Lean~4 \cite{Lean} on top of Mathlib \cite{Mathlib}.
+\end{abstract}
+
+\maketitle
+\tableofcontents
+
+% ===============================================================
+\section{Introduction}
+
+Among the many proposals for a ``geometry over the field with one element'' (see e.g.\ \cite{De}, and \cite{Ju} for the related theory of hyperrings), the approach of
+Connes and Consani \cite{CC1,CC2} takes as basic objects Segal's $\Gamma$-sets \cite{Se}: pointed-set
+valued functors on the category of finite pointed sets. Ordinary commutative monoids (and in
+particular abelian groups and rings, via their additive structure) embed into $\Gamma$-sets through
+the Eilenberg--Mac~Lane construction, and the tautological $\Gamma$-set $\Sph\colon n_+\mapsto n_+$
+plays the role of $\F$: it is the unit for the smash product of $\Gamma$-sets \cite{Ly} (see also \cite{BF} for the homotopical theory). One
+therefore calls $\Gamma$-sets \emph{$\F$-modules}, and monoids for the smash product
+\emph{$\F$-algebras}.
+
+In recent work \cite{X1}, L.~Xu analysed the \emph{additive} structure carried by a $\Gamma$-set.
+For a $\Gamma$-set $X$, its underlying set is $X(1_+)$, and every element $z\in X(n_+)$ has $n$
+coordinates in $X(1_+)$ and a total sum in $X(1_+)$. Declaring $w$ to be ``a sum'' of
+$v_1,\dots,v_n$ when some $z$ has coordinates $v_j$ and total sum $w$ gives a family of $n$-ary
+multivalued operations (hyper-operations). These are not strictly associative, but satisfy a
+\emph{law of generalized associativity}; Xu uses it to construct an extension of scalars
+$-\otimes_{\F}\mathbb{Z}$ left adjoint to the Eilenberg--Mac~Lane functor, and later develops
+localization and affine schemes over $\F$ in this language \cite{X2}.
+
+The Lean files described here formalize this circle of ideas. A distinctive feature is that we
+isolate an \emph{axiomatic} notion of $\F$-module at the level of points
+(Definition~\ref{def:F1module}): a set with $n$-ary hyper-operations, a zero, and a regrouping
+axiom. We prove that the points of every $\Gamma$-set form such an object
+(Theorem~\ref{thm:assoc}), that the resulting points functor has a right adjoint given by a nerve
+construction (Theorem~\ref{thm:nerve}), and that $\F$-modules in this sense have an enveloping
+commutative monoid (Theorem~\ref{thm:env}). Composing these adjunctions recovers, at the level of
+commutative monoids, the shape of Xu's extension of scalars.
+
+\subsection*{Terminology warning}
+In \cite{X1,CC1} an ``$\F$-module'' \emph{is} a $\Gamma$-set. In the Lean code, the class
+\lean{F1module} denotes the axiomatic structure on a set of points of
+Definition~\ref{def:F1module}. We keep this distinction throughout: ``$\Gamma$-set'' refers to the
+functor, ``$\F$-module'' (or \lean{F1module}) to the hyper-additive structure on points.
+
+\subsection*{Conventions}
+All $\Gamma$-sets live in \lean{Type 0}. Throughout, ``pointed set'' means a set with a
+distinguished base point, and $\Pt$ is the category of pointed sets (\lean{Pointed} in Mathlib).
+
+% ===============================================================
+\section{\texorpdfstring{The category $\cN=\Gamma^{\mathrm{op}}$ and $\Gamma$-sets}{The category N and Gamma-sets}}
+
+\subsection{Pointed finite sets}
+For $n\in\mathbb{N}$ let $n_+=\{0,1,\dots,n\}$, pointed at $0$. The category $\cN$ has objects
+$n_+$ and morphisms the pointed maps. This is (a skeleton of) the category of finite pointed sets,
+i.e.\ Segal's $\Gamma^{\mathrm{op}}$. In Lean, $n_+$ is \lean{Fin (n+1)} pointed at $0$.
+\leanref{N, N.mk, N.ofFun}{N.lean}
+
+We use the following special maps.
+\begin{itemize}[leftmargin=2em]
+\item The \emph{fold} (or sum) map $\sigma_n\colon n_+\to 1_+$, $i\mapsto 1$ for $i\neq 0$
+ (\lean{N.map_add}).
+\item The \emph{projections} $p_j\colon n_+\to 1_+$, $j\mapsto 1$ and $i\mapsto 0$ for $i\neq j$
+ (\lean{N.map_proj}).
+\item The maps $n_+\to 0_+\to m_+$ (\lean{N.toZero}, \lean{N.fromZero}); $0_+$ is a zero object.
+\item For $i\in n_+$, the map $\mathrm{pt}_i\colon 1_+\to n_+$, $1\mapsto i$ (\lean{N.pt}).
+ Note that $\mathrm{pt}_0$ factors through $0_+$.
+\end{itemize}
+
+\subsection{\texorpdfstring{Pre-$\Gamma$-sets and $\Gamma$-sets}{Pre-Gamma-sets and Gamma-sets}}
+
+\begin{definition}
+A \emph{pre-$\Gamma$-set} is a functor $F\colon\cN\to\Pt$. It is \emph{reduced} if $F(0_+)$ is a
+single point. A \emph{$\Gamma$-set} is a reduced pre-$\Gamma$-set; morphisms are natural
+transformations. We write $\GSet$ for the category of $\Gamma$-sets.
+\end{definition}
+\leanref{preGammaSet, preGammaSet.Reduced, GammaSet}{Gamma.lean}
+
+The reducedness condition is Segal's: a $\Gamma$-object in a pointed category is a functor
+preserving the zero object, and $0_+$ and $*$ are the zero objects of $\cN$ and $\Pt$.
+Section~\ref{sec:const} shows that without it basic adjunctions fail.
+
+\begin{example}[The sphere]
+The inclusion $\Sph\colon\cN\to\Pt$, $n_+\mapsto n_+$, is a $\Gamma$-set, denoted \lean{F1} in the
+code. It will be the unit of the smash product (Section~\ref{sec:monoidal}), and plays the role of
+$\F$.
+\end{example}
+
+% ===============================================================
+\section{\texorpdfstring{The Eilenberg--Mac~Lane $\Gamma$-set}{The Eilenberg-Mac Lane Gamma-set}}
+
+\begin{definition}
+Let $M$ be a commutative monoid. The $\Gamma$-set $HM$ has $HM(n_+)=M^n$, pointed at $0$, and a
+pointed map $f\colon n_+\to m_+$ acts by
+\[
+  (f_*a)_j=\sum_{\substack{i\geq 1\\ f(i)=j}} a_i\qquad (1\le j\le m).
+\]
+It is reduced since $M^0$ is a point. An additive map $h\colon M\to M'$ acts coordinatewise,
+giving a functor $H\colon\CMon\to\GSet$.
+\end{definition}
+\leanref{HM, HM.hMap, HMFunctor}{HM.lean}
+
+\begin{theorem}\label{thm:HM}
+The functor $H\colon\CMon\to\GSet$ is full and faithful.
+\end{theorem}
+\leanref{HMFunctor.Full, HMFunctor.Faithful}{HM.lean}
+
+\begin{proof}[Sketch]
+A morphism $\alpha\colon HM\to HM'$ has a degree-one component $\alpha_1\colon M\to M'$
+(\lean{HM.deg1}). Naturality along the collapse maps $n_+\to 1_+$ that keep only the $j$-th
+coordinate shows that $\alpha_n$ is $\alpha_1$ applied coordinatewise; naturality along
+$\sigma_2\colon 2_+\to 1_+$ shows $\alpha_1(x+y)=\alpha_1(x)+\alpha_1(y)$, and naturality at
+level $0$ shows $\alpha_1(0)=0$. Hence $\alpha=H(\alpha_1)$.
+\end{proof}
+
+% ===============================================================
+\section{The spherical functor}
+
+\subsection{Smash products of pointed sets}
+For pointed sets $(X,x_0)$, $(Y,y_0)$ the smash product $X\sma Y$ is $X\times Y$ with the wedge
+$\{x_0\}\times Y\cup X\times\{y_0\}$ collapsed to a point. Since lying in the wedge is a predicate,
+the relation ``equal or both in the wedge'' is already an equivalence relation, and $X\sma Y$ is
+constructed as a \lean{Quotient}. The file proves the universal property (maps out of $X\times Y$
+constant on the wedge descend) and functoriality.
+\leanref{Pointed.smash, Pointed.Smash.lift, Pointed.Smash.map, Pointed.smashFunctor}{Smash.lean}
+
+\subsection{The adjunction}
+For a pointed set $X$ let $S X$ be the pre-$\Gamma$-set $n_+\mapsto X\sma n_+$, with
+$f\colon n_+\to m_+$ acting by $\mathrm{id}_X\sma f$. It is reduced since $X\sma 0_+=*$, so
+we obtain a functor $\mathrm{Sph}_0\colon\Pt\to\GSet$. Let $\Ev_1\colon\GSet\to\Pt$ be evaluation
+at $1_+$.
+\leanref{GammaSet.S, GammaSet.Sph, GammaSet.S_reduced, GammaSet.Ev}{spherical.lean, spherical_adjunction.lean}
+
+\begin{theorem}\label{thm:sph}
+$\mathrm{Sph}_0\dashv\Ev_1$. That is, for a pointed set $X$ and a $\Gamma$-set $F$, there is a
+natural bijection
+\[\Hom_{\GSet}(S X,F)\cong\Hom_{\Pt}(X,F(1_+)).\]
+The unit is $x\mapsto[x,1]\in X\sma 1_+$ and the counit at level $n$ is $[y,i]\mapsto F(\mathrm{pt}_i)(y)$.
+\end{theorem}
+\leanref{GammaSet.homEquivOfReduced, GammaSet.adj}{spherical_adjunction.lean}
+
+\begin{proof}[Sketch]
+Given $\varphi\colon X\to F(1_+)$, define $S X(n_+)\to F(n_+)$ by
+$[x,i]\mapsto F(\mathrm{pt}_i)(\varphi(x))$. This formula is constant on
+$\{x_0\}\times n_+$ because $\varphi$ is pointed, and on $X\times\{0\}$ \emph{because $F$ is
+reduced}: $\mathrm{pt}_0$ factors through $0_+$. This is the only place reducedness is used.
+The two round trips are naturality along $\mathrm{pt}_i$.
+\end{proof}
+
+\subsection{Reducedness is necessary}\label{sec:const}
+For a pointed set $A$ let $F_A$ be the constant pre-$\Gamma$-set: $F_A(n_+)=A$ and every map acts
+as the identity. It is reduced only if $A=*$.
+
+\begin{theorem}
+For every pointed set $X$ and every $A$, the set $\Hom(S X,F_A)$ of natural transformations is a
+single point. Consequently there is no bijection $\Hom(S X,F)\cong\Hom(X,F(1_+))$ valid for all
+pre-$\Gamma$-sets $F$, and the spherical functor $\Pt\to\mathrm{Fun}(\cN,\Pt)$ is \emph{not}
+left adjoint to evaluation at $1_+$.
+\end{theorem}
+\leanref{GammaSet.uniqueHomConstGamma, GammaSet.no_homEquiv, GammaSet.not_adj}{ConstGamma.lean}
+
+\begin{proof}[Sketch]
+Let $z\colon n_+\to n_+$ be the zero map. On $S X$ it acts by $[x,i]\mapsto[x,0]=*$, on $F_A$ as
+the identity. Naturality of $\alpha\colon S X\to F_A$ along $z$ forces $\alpha_n$ to be constant at
+the base point. But for $X=A=1_+$, $\Hom(X,F_A(1_+))=\Hom(1_+,1_+)$ contains both the identity and the zero map.
+\end{proof}
+
+% ===============================================================
+\section{Hyper-additive structures}
+
+\begin{definition}
+A \emph{hyper-additive structure} on a set $M$ is a family of maps
+$\hs_n\colon M^n\to\cP(M)$, $n\ge 0$ (the ``set of possible values of the sum''). A
+\emph{(weak) morphism} $f\colon M\to M'$ is a map with
+\[ f\bigl(\hs_n(x_1,\dots,x_n)\bigr)\subseteq \hs_n\bigl(f(x_1),\dots,f(x_n)\bigr) \]
+for all $n$ and all tuples. These form a category $\HAdd$.
+\end{definition}
+\leanref{HyperAdd, HyperAdd.Hom, HyperAddCat}{HyperAdd.lean}
+
+Every (commutative) monoid has the hyper-additive structure
+$\hs_n(x_1,\dots,x_n)=\{x_1+\dots+x_n\}$.
+
+\begin{proposition}
+The resulting functor $\Mon\to\HAdd$ (and $\CMon\to\HAdd$) is full and faithful.
+\end{proposition}
+\leanref{AddMonCat.toHyperAddCat, HyperAdd.Hom.toAddMonoidHom}{HyperAdd.lean}
+
+The point is that an inclusion of singletons is an equality, so a weak morphism between monoids
+is additive, and the case $n=0$ gives $f(0)=0$.
+
+\begin{remark}[Why weak morphisms]
+The file \file{HyperAddStrict.lean} develops the same theory with \emph{strict} morphisms
+($=$ instead of $\subseteq$); it is an alternative to \file{HyperAdd.lean} and defines the same
+names. The strict notion is too strong: see Remark~\ref{rem:hurewicz}.
+\end{remark}
+
+% ===============================================================
+\section{\texorpdfstring{The hyper-operations of a $\Gamma$-set}{The hyper-operations of a Gamma-set}}
+
+\begin{definition}[{\cite[\S3.2]{X1}}]
+Let $X$ be a $\Gamma$-set and write $X_n=X(n_+)$. For $v\in X_1^n$ put
+\[
+  \hs_n(v)=\bigl\{\,X(\sigma_n)(z)\;\bigm|\; z\in X_n,\ X(p_j)(z)=v_j\text{ for }1\le j\le n\,\bigr\}.
+\]
+\end{definition}
+\leanref{GammaSet.vect, GammaSet.hadd, GammaSet.HyperAdd}{GammaHyperAdd.lean}
+
+\begin{proposition}
+A morphism of $\Gamma$-sets induces a weak morphism on points, and this gives a functor
+$\GSet\to\HAdd$.
+\end{proposition}
+\leanref{GammaSet.hyperAddHom, GammaSet.toHyperAddCat}{GammaHyperAdd.lean}
+
+\begin{remark}\label{rem:hurewicz}
+The inclusion cannot be improved to an equality. For the Hurewicz map $\Sph\to H\mathbb{N}$,
+$i\mapsto e_i$, and $v=(1,1)$: in $\Sph$ no $z\in 2_+$ has both coordinates equal to $1$, so
+$\hs_2(1,1)=\emptyset$ (``$1+1$ is undefined in $\F$''), while in $H\mathbb{N}$ one has
+$\hs_2(1,1)=\{2\}$. (This example is explained in the documentation of the files, not stated as a
+Lean lemma.)
+\end{remark}
+
+% ===============================================================
+\section{\texorpdfstring{$\F$-modules and generalized associativity}{F1-modules and generalized associativity}}
+
+For a partition $p$ of $\{1,\dots,n\}$ into $m$ blocks $B_1,\dots,B_m$ (\lean{partition n m};
+blocks may be empty), and subsets $A_1,\dots,A_n\subseteq M$, write
+$\hs_n(A_1,\dots,A_n)=\bigcup_{a_i\in A_i}\hs_n(a_1,\dots,a_n)$ and $\hs_{B}(A)$ for the hyper-sum
+over the elements of a block $B$ listed in increasing order
+(\lean{HyperAdd.set}, \lean{HyperAdd.finset}).
+
+\begin{definition}\label{def:F1module}
+An \emph{$\F$-module} is a hyper-additive structure $M$ together with an element $0\in M$ such that
+\begin{enumerate}[label=(\roman*)]
+\item $0\in\hs_k(0,\dots,0)$ for every $k\ge 0$;
+\item $0$ is the only empty sum: $\hs_0()\subseteq\{0\}$;
+\item (\emph{hyper-associativity}) for every partition $p=(B_1,\dots,B_m)$ of $\{1,\dots,n\}$ and
+all $A_1,\dots,A_n\subseteq M$,
+\[
+  \hs_n(A_1,\dots,A_n)\subseteq \hs_m\bigl(\hs_{B_1}(A),\dots,\hs_{B_m}(A)\bigr).
+\]
+\end{enumerate}
+A morphism of $\F$-modules is a weak morphism preserving $0$. We write $\FMod$ for this category.
+\end{definition}
+\leanref{F1module, F1module.Hom}{F1Modules.lean}
+\leanref{F1moduleCat}{F1moduleCat.lean}
+
+Condition (iii) says that any value of a sum can be obtained by first summing along the blocks of a
+partition and then summing the results. For a commutative monoid it is exactly the fact that a
+finite sum can be regrouped (\lean{AddCommMonoid.F1module}).
+
+\begin{example}[Subsets]\label{ex:subsets}
+Let $\cP(n)$ be the set of subsets of $\{1,\dots,n\}$, with $\hs_k(S_1,\dots,S_k)=\{\bigcup S_i\}$
+if the $S_i$ are pairwise disjoint and $\emptyset$ otherwise, and zero $\emptyset$. This is an
+$\F$-module. It is the set of points of the representable $\Gamma$-set $\cN(n_+,-)$: a pointed map
+$n_+\to 1_+$ is a subset of $\{1,\dots,n\}$, and a family of such maps lifts to level $k$ exactly
+when the subsets are disjoint.
+\end{example}
+\leanref{Subsets.instF1module, Subsets.hadd_assoc}{Subsets.lean}
+
+\begin{theorem}[Generalized associativity; cf.\ {\cite[\S3.5]{X1}}]\label{thm:assoc}
+For every $\Gamma$-set $X$, the points $X(1_+)$ with the hyper-operations $\hs_n$ and zero the base
+point form an $\F$-module. Hence the functor of the previous section factors through a functor
+$\GSet\to\FMod$.
+\end{theorem}
+\leanref{GammaSet.hadd_assoc, GammaSet.point_mem_hadd, GammaSet.eq_point_of_mem_hadd_zero}{GammaF1Module.lean}
+
+\begin{proof}[Sketch]
+A partition $p$ gives two kinds of maps in $\cN$: the \emph{block map}
+$b_p\colon n_+\to m_+$, sending $i$ to the index of its block, and for each block $B$ the
+\emph{restriction} $r_B\colon n_+\to |B|_+$, sending the $k$-th element of $B$ to $k$ and the rest to
+$0$. One checks three identities in $\cN$:
+\[
+ p_k\circ r_B = p_{e(k)},\qquad
+ p_j\circ b_p=\sigma_{|B_j|}\circ r_{B_j},\qquad
+ \sigma_m\circ b_p=\sigma_n
+\]
+(\lean{N.restr_comp_proj}, \lean{N.block_comp_proj}, \lean{N.block_comp_add}). If $z\in X_n$ is a
+lift of $(a_1,\dots,a_n)$ with sum $x$, then $X(b_p)(z)$ is a lift at level $m$ with sum $x$, and
+$X(r_{B_j})(z)$ exhibits its $j$-th coordinate as a sum of the $a_i$, $i\in B_j$. Condition (i)
+holds because the base point of $X_k$ lifts $(0,\dots,0)$; condition (ii) is where reducedness
+is used, since a lift of the empty tuple lives in $X_0=*$. No other hypothesis on $X$ is needed.
+\end{proof}
+
+% ===============================================================
+\section{\texorpdfstring{The nerve of an $\F$-module}{The nerve of an F1-module}}
+
+\begin{definition}
+Let $M$ be an $\F$-module. The \emph{nerve} $\Nv M$ is the $\Gamma$-set with
+\[\Nv M(n_+)=\Hom_{\HAdd}(\cP(n),M)\]
+(all weak morphisms of hyper-additive structures), pointed at the constant map $0$. A pointed
+map $\varphi\colon n_+\to m_+$ acts by precomposition with the preimage map
+$\cP(m)\to\cP(n)$, $T\mapsto\{i\ge 1:\varphi(i)\in T\}$, which preserves disjoint unions.
+\end{definition}
+\leanref{Nerve, Nerve.hMap, Nerve.nerveFunctor}{Nerve.lean}
+
+This is the usual nerve construction relative to the ``model'' objects $\cP(n)$ of
+Example~\ref{ex:subsets}. The constant map $0$ is a weak morphism precisely by axiom (i).
+
+\begin{theorem}\label{thm:nerve}
+The points functor $\GSet\to\FMod$ of Theorem~\ref{thm:assoc} is left adjoint to
+$\Nv\colon\FMod\to\GSet$:
+\[
+ \Hom_{\FMod}\bigl(X(1_+),M\bigr)\;\cong\;\Hom_{\GSet}(X,\Nv M).
+\]
+\end{theorem}
+\leanref{Nerve.homEquiv, Nerve.adj}{Nerve.lean}
+
+\begin{proof}[Sketch]
+Write $\chi_S\colon n_+\to 1_+$ for the indicator of $S\subseteq\{1,\dots,n\}$.
+Given $f\colon X(1_+)\to M$, send $z\in X_n$ to $S\mapsto f\bigl(X(\chi_S)(z)\bigr)$. This is a
+weak morphism $\cP(n)\to M$: for a disjoint family $S_1,\dots,S_k$ the \emph{separation map}
+$n_+\to k_+$, $S_r\mapsto r$, satisfies $p_r\circ\mathrm{sep}=\chi_{S_r}$ and
+$\sigma_k\circ\mathrm{sep}=\chi_{\bigcup S_r}$, so $X(\mathrm{sep})(z)$ is a lift of
+$(X(\chi_{S_r})(z))_r$ with sum $X(\chi_{\bigcup S_r})(z)$. Conversely, $\alpha\colon X\to\Nv M$
+gives $x\mapsto\alpha_1(x)(\{1\})$. The round trips follow from $\chi_{\{1\}}=\mathrm{id}_{1_+}$
+and from the fact that the preimage of $\{1\}$ under $\chi_S$ is $S$. The unit
+$X\to\Nv(X(1_+))$ records all partial sums $z\mapsto(S\mapsto X(\chi_S)(z))$.
+\end{proof}
+
+\begin{remark}
+It is essential that the levels of $\Nv M$ consist of \emph{all} weak morphisms, and not only the
+zero-preserving ones; otherwise the argument of Section~\ref{sec:const} would break the adjunction
+for non-reduced objects. For a commutative monoid $M$, a weak morphism $a\colon\cP(n)\to M$ is
+determined by $a(S)=\sum_{i\in S}a(\{i\})$, so $\Nv M\cong HM$; this identification is noted in
+the documentation but not yet formalized.
+\end{remark}
+
+% ===============================================================
+\section{The enveloping commutative monoid}
+
+\begin{definition}
+Let $M$ be an $\F$-module. Its \emph{enveloping monoid} $\Env M$ is the free commutative monoid on
+$M$ (finite multisets) modulo the congruence generated by
+$[c]\sim[x_1]+\dots+[x_n]$ whenever $c\in\hs_n(x_1,\dots,x_n)$.
+\end{definition}
+\leanref{F1module.envCon, F1module.Env, F1module.unit, F1module.lift}{F1moduleAddCommMonCat.lean}
+
+\begin{theorem}\label{thm:env}
+$\Env\colon\FMod\to\CMon$ is left adjoint to the functor $\CMon\to\FMod$ sending a commutative
+monoid to itself with $\hs_n(x)=\{\sum x_i\}$.
+\end{theorem}
+\leanref{F1moduleCat.env, F1moduleCat.envAdj}{F1moduleAddCommMonCat.lean}
+
+\begin{corollary}[shape]
+Composing Theorems~\ref{thm:nerve} and~\ref{thm:env},
+$\Env\circ\mathrm{Points}\colon\GSet\to\CMon$ is left adjoint to
+$\Nv\circ\mathrm{incl}\colon\CMon\to\GSet$, which is expected to be isomorphic to $H$. This is
+the commutative-monoid analogue of Xu's extension of scalars
+$-\otimes_{\F}\mathbb{Z}\dashv H$ \cite[\S4]{X1}; composing further with group completion would
+give the version with abelian groups.
+\end{corollary}
+The composite adjunction is a formal consequence of the two formalized ones, but it is not stated
+as a single Lean declaration.
+
+% ===============================================================
+\section{\texorpdfstring{The smash product of $\Gamma$-sets}{The smash product of Gamma-sets}}\label{sec:monoidal}
+
+\subsection{\texorpdfstring{Smash product on $\cN$}{Smash product on N}}
+The smash product $m_+\sma n_+$ is realised concretely as $(mn)_+$, via the encoding
+$\mathrm{enc}\colon m_+\times n_+\to(mn)_+$ which sends the wedge to $0$ and is the standard
+bijection $\{1..m\}\times\{1..n\}\cong\{1..mn\}$ off it. Maps out of $(mn)_+$ are determined by
+their values on encoded pairs; this gives $f\sma g$, associators, unitors and the symmetry of
+$\cN$.
+\leanref{N.enc, N.dec, N.smashMap, N.assocN, N.lamN, N.rhoN, N.swapN}{NMonoidal.lean}
+
+\subsection{Day convolution}
+Following Day \cite{Da} and Lydakis \cite{Ly}, the smash product of $\Gamma$-sets is
+\[
+ (F\sma G)(k_+)=\operatorname*{colim}_{m_+\sma n_+\to k_+}F(m_+)\sma G(n_+).
+\]
+In Lean the colimit is the quotient of the set of quintuples $(m,n,g\colon m_+\sma n_+\to k_+,x\in
+F(m_+),y\in G(n_+))$ by the relation
+$(m,n,(a\sma b)\circ g,x,y)\sim(m',n',g,F(a)x,G(b)y)$. Using $F(m_+)\times G(n_+)$ instead of the
+smash is harmless: for reduced $F,G$ the wedge is automatically collapsed
+(\lean{Day.mk_point_left}, \lean{Day.mk_point_right}). Morphisms out of $F\sma G$ correspond to
+\emph{bimorphisms} $F(m_+)\times G(n_+)\to H(m_+\sma n_+)$ natural in both variables.
+\leanref{GammaSet.Day.tensorF, GammaSet.Day.Bimor, GammaSet.Day.desc}{GammaMonoidal.lean}
+
+\begin{theorem}
+$(\GSet,\sma,\Sph)$ is a monoidal category.
+\end{theorem}
+\leanref{GammaSet.Day.associator, GammaSet.Day.leftUnitor, GammaSet.Day.pentagon, instance MonoidalCategory GammaSet}{GammaMonoidal.lean}
+
+\begin{proof}[Method]
+A morphism out of an iterated smash product is determined by its values on generators
+$\iota(\iota(x,y),z)$ (\lean{Gens.ext}); on generators every structure map acts through a map of
+$\cN$, and equalities of maps of $\cN$ are checked on encoded elements
+(\lean{N.hom_ext_enc}). The unitors use that $\Sph$ is the free $\Gamma$-set on $1\in\Sph(1_+)$.
+\end{proof}
+
+\begin{remark}
+The symmetric structure and the internal hom
+$\underline{\Hom}(M,N)(n_+)=\Hom_{\GSet}(M,N(n_+\sma-))$, announced in the header of
+\file{GammaMonoidal.lean}, are not yet formalized. Together with them, $\F$-algebras
+(monoids for $\sma$) and the multiplicative version of the extension of scalars \cite[\S5]{X1},
+as well as localization \cite{X2}, are natural next steps.
+\end{remark}
+
+% ===============================================================
+\section{Correspondence with the files}
+
+\begin{center}
+\begin{longtable}{p{4.2cm}p{9.6cm}}
+\toprule
+File & Content \\
+\midrule
+\file{N.lean} & The category $\cN$; special maps. \\
+\file{Smash.lean} & Smash product of pointed types. \\
+\file{Gamma.lean} & Pre-$\Gamma$-sets, reducedness, $\GSet$, the sphere $\Sph$. \\
+\file{NMonoidal.lean} & Smash product on $\cN$. \\
+\file{HM.lean} & $HM$; Theorem~\ref{thm:HM}. \\
+\file{spherical.lean} & The spherical functor. \\
+\file{spherical_adjunction.lean} & Theorem~\ref{thm:sph}. \\
+\file{ConstGamma.lean} & Counterexample of Section~\ref{sec:const}. \\
+\file{HyperAdd.lean} & Hyper-additive structures, weak morphisms. \\
+\file{HyperAddStrict.lean} & Variant with strict morphisms. \\
+\file{F1Modules.lean} & Definition~\ref{def:F1module}. \\
+\file{F1moduleCat.lean} & The bundled category $\FMod$ and the associated functors. \\
+\file{GammaHyperAdd.lean} & Hyper-operations of a $\Gamma$-set. \\
+\file{GammaF1Module.lean} & Theorem~\ref{thm:assoc}. \\
+\file{Subsets.lean} & Example~\ref{ex:subsets}. \\
+\file{Nerve.lean} & Theorem~\ref{thm:nerve}. \\
+\file{F1moduleAddCommMonCat.lean} & Theorem~\ref{thm:env}. \\
+\file{GammaMonoidal.lean} & Monoidal structure on $\GSet$. \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+% ===============================================================
+\begin{thebibliography}{99}
+
+\bibitem{BF} A.~K.~Bousfield, E.~M.~Friedlander,
+\emph{Homotopy theory of $\Gamma$-spaces, spectra, and bisimplicial sets},
+in: Geometric Applications of Homotopy Theory II, LNM 658, Springer (1978), 80--130.
+
+\bibitem{CC1} A.~Connes, C.~Consani,
+\emph{Absolute algebra and Segal's $\Gamma$-rings: au dessous de $\overline{\mathrm{Spec}(\mathbb{Z})}$},
+J.~Number Theory 162 (2016), 518--551.
+
+\bibitem{CC2} A.~Connes, C.~Consani,
+\emph{On absolute algebraic geometry, the affine case},
+Adv.~Math. 390 (2021).
+
+\bibitem{Da} B.~Day,
+\emph{On closed categories of functors},
+in: Reports of the Midwest Category Seminar IV, LNM 137, Springer (1970), 1--38.
+
+\bibitem{De} A.~Deitmar,
+\emph{Schemes over $\F$},
+in: Number Fields and Function Fields, Progr.~Math. 239, Birkh\"auser (2005), 87--100.
+
+\bibitem{Ju} J.~Jun,
+\emph{Algebraic geometry over hyperrings},
+Adv.~Math. 323 (2018), 142--192.
+
+\bibitem{Ly} M.~Lydakis,
+\emph{Smash products and $\Gamma$-spaces},
+Math.~Proc.~Cambridge Philos.~Soc. 126 (1999), 311--328.
+
+\bibitem{Mathlib} The mathlib Community,
+\emph{The Lean mathematical library},
+in: Proceedings of CPP 2020, ACM (2020), 367--381.
+
+\bibitem{Lean} L.~de Moura, S.~Ullrich,
+\emph{The Lean 4 theorem prover and programming language},
+in: CADE-28, LNCS 12699, Springer (2021), 625--635.
+
+\bibitem{Se} G.~Segal,
+\emph{Categories and cohomology theories},
+Topology 13 (1974), 293--312.
+
+\bibitem{X1} L.~Xu,
+\emph{Hyper-operations and extension of scalars from $\F$ to $\mathbb{Z}$},
+arXiv:2604.24568 (2026).
+
+\bibitem{X2} L.~Xu,
+\emph{Localization and affine schemes over $\F$},
+arXiv:2607.04843 (2026).
+
+\end{thebibliography}
+
+\end{document}
