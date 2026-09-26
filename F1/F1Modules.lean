@@ -8,7 +8,8 @@ import F1.HyperAdd
 An `F1module` is a `HyperAdd` structure with
 
 * a distinguished element `zero`, which is a sum of any number of copies of itself
-  (`zero_mem : ∀ k, zero ∈ hadd k (fun _ => zero)`; for `k = 0` this says `zero` is an empty sum);
+  (`zero_mem : ∀ k, zero ∈ hadd k (fun _ => zero)`; for `k = 0` this says `zero` is an empty sum),
+  and which is the only empty sum (`eq_zero_of_mem_hadd_zero`);
 * hyper-associativity `hadd_assoc`: a sum can always be computed by regrouping along a partition.
 
 Morphisms (`F1module.Hom`) are the weak morphisms of `HyperAdd` structures which preserve `zero`.
@@ -38,6 +39,8 @@ class F1module (M : Type u) extends HyperAdd M where
   zero : M
   /-- `zero` is a sum of any number (including none) of copies of itself -/
   zero_mem : ∀ k : ℕ, zero ∈ hadd k (fun _ => zero)
+  /-- `zero` is the *only* empty sum -/
+  eq_zero_of_mem_hadd_zero : ∀ (x : Fin 0 → M) (y : M), y ∈ hadd 0 x → y = zero
   /-- hyper-associativity: a sum can be regrouped along any partition -/
   hadd_assoc {n m : ℕ} (p : partition n m) (A : Fin n → (Set M)) :
     HyperAdd.set M n A ⊆ HyperAdd.set M m (fun i => HyperAdd.finset M n (p.toFun i) (fun f => A f))
@@ -49,6 +52,9 @@ instance AddCommMonoid.F1module (M : Type u) [AddCommMonoid M] : F1module M wher
   zero_mem k := by
     rw [AddMonoid.hadd_eq_sum]
     simp
+  eq_zero_of_mem_hadd_zero x y hy := by
+    rw [AddMonoid.hadd_eq_sum] at hy
+    simpa using hy
   hadd_assoc {n m} (p) (A) := by
     intro x hx
     simp only [HyperAdd.set, Set.mem_iUnion] at hx

@@ -283,11 +283,20 @@ theorem point_mem_hadd (k : ℕ) :
     fun i => (Pointed.Hom.map_point (X.F.map (N.map_proj i))).symm,
     Pointed.Hom.map_point (X.F.map (N.map_add k))⟩
 
+/-- The basepoint is the only empty sum: a lift of the empty tuple lives in `X 0₊ = *`.  This
+is where reducedness of `X` is used. -/
+theorem eq_point_of_mem_hadd_zero (v : Fin 0 → X.Points) (y : X.Points) (hy : y ∈ X.hadd 0 v) :
+    y = (X.F.obj (N.mk 1)).point := by
+  obtain ⟨z, -, rfl⟩ := (X.mem_hadd_iff v y).mp hy
+  exact (congrArg (X.add 0) (X.reduced.eq_point z)).trans
+    (Pointed.Hom.map_point (X.F.map (N.map_add 0)))
+
 /-- The points of a Γ-space form an `F1module`, with zero the basepoint of `X 1₊`. -/
 instance : F1module X.Points where
   toHyperAdd := X.HyperAdd
   zero := (X.F.obj (N.mk 1)).point
   zero_mem k := X.point_mem_hadd k
+  eq_zero_of_mem_hadd_zero v y hy := X.eq_point_of_mem_hadd_zero v y hy
   hadd_assoc p A := X.hadd_assoc p A
 
 

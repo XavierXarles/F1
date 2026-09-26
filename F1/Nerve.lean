@@ -332,7 +332,12 @@ def Nerve (M : Type) [F1module M] : GammaSet where
     intro a
     exact mapFun_comp (Pointed.Hom.toFun f) (Pointed.Hom.toFun g) _ (fun i => rfl)
       g.map_point a}
-  reduced := sorry
+  -- `𝒫 0 = {∅}`, and `∅` is the empty sum, so `a ∅` is an empty sum in `M`, hence `0`
+  reduced := fun a => HyperAdd.Hom.ext (X := Finset (Fin 0)) (Y := M) fun T => by
+    have hT : T ∈ hadd 0 (Fin.elim0 : Fin 0 → Finset (Fin 0)) :=
+      Subsets.mem_hadd_iff.mpr ⟨fun i _ _ => i.elim0, by ext x; exact x.elim0⟩
+    exact F1module.eq_zero_of_mem_hadd_zero _ _
+      (HyperAdd.Hom.mem_hadd_of_mem_hadd (X := Finset (Fin 0)) (Y := M) a 0 _ hT)
 
 namespace Nerve
 

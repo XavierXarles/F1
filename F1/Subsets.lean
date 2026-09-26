@@ -107,6 +107,10 @@ theorem hadd_assoc {k m : ℕ} (p : partition k m) (A : Fin k → Set (Finset (F
 instance instF1module : F1module (Finset (Fin n)) where
   zero := ∅
   zero_mem k := empty_mem_hadd k
+  eq_zero_of_mem_hadd_zero x y hy := by
+    rw [(mem_hadd_iff.mp hy).2]
+    ext i
+    exact Eq.to_iff rfl
   hadd_assoc p A := hadd_assoc p A
 
 @[simp] theorem zero_eq_empty : (F1module.zero : Finset (Fin n)) = ∅ := rfl
